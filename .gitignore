@@ -1,0 +1,18 @@
+# LaTeX 编译残留
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.bcf
+*.run.xml
+*.synctex.gz
+
+# Python
+__pycache__/
+*.pyc
+
+# 系统
+.DS_Store
+Thumbs.db

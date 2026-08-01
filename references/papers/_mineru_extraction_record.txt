@@ -1,0 +1,38 @@
+=== MinerU Extraction Record ===
+Updated: 2026-07-18 01:15
+
+=== Known Issue: MinerU CDN SSL Failure Behind Proxy ===
+Root cause: When system proxy (e.g., Clash/V2Ray at 127.0.0.1:7892) is active,
+the CDN `cdn-mineru.openxlab.org.cn` fails SSL handshake through the proxy tunnel.
+The proxy's CONNECT returns 200 but the actual CDN SSL negotiation fails.
+Direct connection (bypassing proxy) works perfectly.
+
+Fix: Set $env:HTTPS_PROXY='' and $env:HTTP_PROXY='' before running mineru-open-api.
+
+=== C-Topic Papers (2015-2024) ===
+Total: 37 files
+  2015C: 4 papers (C1-C4)
+  2016C: 2 papers (C1-C2)
+  2017C: 3 papers (C1-C3)
+  2018C: 3 papers (C1-C3)
+  2019C: 3 papers (C1-C3)
+  2020C: 4 papers (C1-C4)
+  2021C: 4 papers (C1-C4)
+  2022C: 3 papers (C065, C155, C229)
+  2023C: 4 papers (C050, C126, C228, C235)
+  2024C: 3 papers (C038, C063, C234)
+
+=== B-Topic Papers (2015-2023) ===
+Total: 23 files
+  2015B: 5 papers (B1-B5)
+  2016B: 5 papers (B1-B5)
+  2017B: 7 papers (B1-B7)
+  2018B: 3 papers (B1-B3)
+  2023B: 3 papers (B226, B311, B477)
+
+=== Skipped Years (B-Topic) ===
+  2019B: 3 papers exist but exceed 10MB flash-extract limit (7-13 MB each)
+  2020B: 4 papers exist but all exceed 10MB (15-45 MB each)
+  2021B: 4 scanned JPG sets (B, B050, B106, B2) - need OCR + assembly
+  2022B: No B-topic solution papers in source
+  2024B: 3 scanned JPG sets (B159, B195, B196) - need OCR + assembly

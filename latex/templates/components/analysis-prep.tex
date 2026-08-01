@@ -1,0 +1,97 @@
+% ============================================================
+% 分析与准备 — 内部报告子文件模板
+% 包含：具体分析 + 模型准备（数据预处理 + 算法选择）
+% 依赖包：tikz, float, longtable, array
+% 需在主文件中预定义 TikZ 样式：
+%   \tikzstyle{box}=[rectangle,draw,thick,text width=3.2cm,
+%                     text centered,minimum height=0.9cm,rounded corners=2pt]
+%   \tikzstyle{arrow}=[->,>=stealth,thick]
+% ============================================================
+
+\subsubsection{具体分析}
+
+% 第1段：问题类型 + 大致方法
+问题一要求...，属于<评价/分类/预测/优化/机理分析>类问题。
+本问采用...方法进行求解。
+
+% 第2段：完整步骤串联（首先→接着→然后→最后，不换段）
+首先对...进行...，
+接着利用...方法...，
+然后构建...模型...，
+最后通过...得到...。
+
+% 第3段：引出流程图
+具体分析流程如图\ref{fig:analysis1_flow}所示。
+
+% 流程图（TikZ 9框固定模板，每框≤7字）
+\begin{figure}[H]
+  \begin{center}
+    \begin{tikzpicture}[x=1cm, y=0.7cm]
+      \node[box] (n11) at (0, 0) {步骤1};
+      \node[box] (n12) at (5, 0) {步骤2};
+      \node[box] (n13) at (10, 0) {步骤3};
+      \node[box] (n22) at (5, -3) {步骤5};
+      \node[box] (n21) at (0, -3) {步骤4};
+      \node[box] (n23) at (10, -3) {步骤6};
+      \node[box] (n31) at (0, -6) {步骤7};
+      \node[box] (n32) at (5, -6) {步骤8};
+      \node[box] (n33) at (10, -6) {步骤9};
+      \draw[arrow] (n11) -- (n12);
+      \draw[arrow] (n12) -- (n13);
+      \draw[arrow] (n23) -- (n22);
+      \draw[arrow] (n22) -- (n21);
+      \draw[arrow] (n13) -- ++(0,-1.0) -| (n23);
+      \draw[arrow] (n21) -- (n31);
+      \draw[arrow] (n31) -- (n32);
+      \draw[arrow] (n32) -- (n33);
+    \end{tikzpicture}
+    \caption{问题一分析流程图}
+    \label{fig:analysis1_flow}
+  \end{center}
+\end{figure}
+
+% ============================================================
+\subsubsection{模型准备}
+
+% 引文
+在进行建模之前，需要...。本节将从数据预处理和算法选择两方面进行准备。
+
+% ==== 数据预处理（仅问题1写此段，问题2+可省略）====
+原始数据来源于...，包含...条记录和...个字段。
+经检查发现以下问题：...（缺失值/量纲不统一/异常值/编码问题）。
+
+针对上述问题，按以下步骤进行预处理：
+第一步，...（如缺失值处理，具体方法+参数）。
+第二步，...（如标准化/归一化，写出公式，参考 PR-014 先算后画原则）。
+第三步，...（如特征编码/衍生）。
+
+预处理后，数据规模为...行×...列。
+
+综上所述，数据预处理完成，为后续建模提供了清洁的输入数据。
+
+% ==== 算法选择 ====
+该问题本质上是一个...问题，需要在...条件下...。
+常用求解算法包括...等。本节从多个维度进行评估。
+
+% 算法对比表（longtable 格式，PR-013 列宽公式：5列合计 0.84\textwidth，
+% 剩余0.16\textwidth由列间空隙消耗）
+\begin{longtable}{>{\centering\arraybackslash}p{0.12\textwidth}>{\centering\arraybackslash}p{0.18\textwidth}>{\centering\arraybackslash}p{0.18\textwidth}>{\centering\arraybackslash}p{0.18\textwidth}>{\centering\arraybackslash}p{0.18\textwidth}}
+  \caption{算法能力对比}
+  \label{tab:算法对比1} \\
+  \toprule
+  算法名称 & 维度1 & 维度2 & 维度3 & 稳定性 \\
+  \midrule
+  \endfirsthead
+  \caption{算法能力对比（续）} \\
+  \toprule
+  算法名称 & 维度1 & 维度2 & 维度3 & 稳定性 \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  ... & ... & ... & ... & ... \\
+\end{longtable}
+
+通过对比可以看出，...在...方面表现最优。因此本文选择...作为核心求解方法。
+
+综上所述，本节完成了数据预处理和算法选型，接下来将建立数学模型并进行求解。

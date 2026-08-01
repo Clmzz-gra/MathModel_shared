@@ -1,0 +1,23 @@
+% 共享导言区
+% 中文支持，xelatex 编译
+% 所有 LaTeX 文档的公共设置
+
+% --- 中文支持（必须）---
+\usepackage[UTF8]{ctex}
+
+% --- 数学 ---
+\usepackage{amsmath, amssymb, amsthm}
+
+% --- 图表 ---
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{caption}
+
+% --- 引用 ---
+\usepackage[backend=biber,style=gb7714-2015]{biblatex}
+\addbibresource{references/bib/references.bib}
+
+% --- 排版 ---
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\onehalfspacing

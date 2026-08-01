@@ -1,0 +1,108 @@
+% ============================================================
+% 建模与求解 — 内部报告子文件模板
+% 包含：模型建立（三段式）+ 模型求解
+% 遵循 PR-015：模型建立三段式与编号步骤法
+% 依赖包：float, longtable, array
+% ============================================================
+
+\subsubsection{模型建立}
+
+% ==== 第1段：开篇引文 ====
+针对问题一，本节将从...角度建立...模型。具体过程如下。
+
+% ==== 第2段：编号步骤法（每步≥6公式+文字串联+变量说明）====
+\textbf{步骤1：...}
+
+首先，...。设...为...，则有：
+\begin{equation}
+    ... = ...
+\end{equation}
+其中，$...$表示...。
+
+将...代入...，可得：
+\begin{equation}
+    ... = ...
+\end{equation}
+进一步展开得：
+\begin{equation}
+    ... = ...
+\end{equation}
+
+\textbf{步骤2：...}
+
+根据...的性质，可以建立以下关系：
+\begin{equation}
+    ... = ...
+\end{equation}
+其中，$...$为...，$...$为...。
+
+由上述公式联立可得：
+\begin{equation}
+    ... = ...
+\end{equation}
+
+% ...（按需增加步骤，每步≥6公式）...
+
+\textbf{步骤N：求解算法}
+
+% 算法参数表（longtable 格式，PR-013 列宽公式：4列合计 0.88\textwidth）
+\begin{longtable}{>{\centering\arraybackslash}p{0.12\textwidth}>{\centering\arraybackslash}p{0.30\textwidth}>{\centering\arraybackslash}p{0.20\textwidth}>{\centering\arraybackslash}p{0.26\textwidth}}
+  \caption{算法参数设置}
+  \label{tab:参数1} \\
+  \toprule
+  参数名 & 参数含义 & 取值 & 选取依据 \\
+  \midrule
+  \endfirsthead
+  \caption{算法参数设置（续）} \\
+  \toprule
+  参数名 & 参数含义 & 取值 & 选取依据 \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  ... & ... & ... & ... \\
+\end{longtable}
+
+% ==== 第3段：总结桥接 ====
+综上所述，本节完成了...模型的建立，得到了...（目标函数/评价体系/预测模型），接下来将基于此进行求解。
+
+% ============================================================
+\subsubsection{模型求解}
+
+% 引文
+基于上述模型，本节利用...数据进行求解。核心参数如表\ref{tab:参数1}所示。
+
+% 结果表格（longtable，PR-013 列宽公式：5列合计 0.84\textwidth）
+求解得到以下结果：
+
+\begin{longtable}{>{\centering\arraybackslash}p{0.12\textwidth}>{\centering\arraybackslash}p{0.18\textwidth}>{\centering\arraybackslash}p{0.18\textwidth}>{\centering\arraybackslash}p{0.18\textwidth}>{\centering\arraybackslash}p{0.18\textwidth}}
+  \caption{...结果}
+  \label{tab:结果1} \\
+  \toprule
+  指标1 & 指标2 & 指标3 & 指标4 & 指标5 \\
+  \midrule
+  \endfirsthead
+  \caption{...结果（续）} \\
+  \toprule
+  指标1 & 指标2 & 指标3 & 指标4 & 指标5 \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  ... & ... & ... & ... & ... \\
+\end{longtable}
+
+% 结果图
+如图\ref{fig:xxx}所示，...（一句话点出图的结论）。
+
+% 图引用示例（在求解代码中生成图后，此处引用）：
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.8\textwidth]{../求解/问题一/figures/xxx.png}
+%   \caption{...}
+%   \label{fig:xxx}
+% \end{figure}
+
+% 结果分析
+由表\ref{tab:结果1}可知，...。从图\ref{fig:xxx}可以看出，...。
+综合以上结果，...。

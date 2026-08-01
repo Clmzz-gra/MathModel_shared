@@ -1,0 +1,105 @@
+# 将内部报告内容类型映射到终稿章节
+# latex-builder skill 据此判断内容放置位置
+# 章节顺序即为终稿中出现的顺序（MCM 标准结构）
+
+summary_sheet:
+  internal_sources:
+    - "问题重述"
+    - "方法概述"
+    - "关键结果"
+    - "结论与意义"
+  template: "summary-sheet.tex"
+  note: "独立首页，不计入页数限制。评审首先读这页。必须自包含：不依赖正文就能理解。≤300 词"
+
+toc:
+  auto: true
+  note: "由 LaTeX 自动生成（\\tableofcontents），无需内部报告提供内容"
+
+introduction:
+  internal_sources:
+    - "问题重述"
+    - "背景上下文"
+    - "知识检索结论"
+  template: "introduction.tex"
+  max_pages: 1
+
+assumptions:
+  internal_sources:
+    - "假设列表"
+    - "模型前提"
+  template: "assumptions-list.tex"
+  format: "编号列表 + 每条假设的合理性论证"
+
+notations:
+  internal_sources:
+    - "符号定义"
+  template: "notation-table.tex"
+  note: "可选。如果符号已在模型中逐一说明，可省略独立符号节"
+
+model:
+  internal_sources:
+    - "5.X.问题X的建立求解.tex"  # 主文件，通过\input引入两个子文件
+    - "5.X.1.分析与准备.tex"      # 具体分析+流程图+模型准备
+    - "5.X.2.建模与求解.tex"      # 模型建立+模型求解
+  template: "model.tex"
+  max_pages: 8
+  note: "正文核心。每个子模型独立成节。模型间应交代接口关系"
+  key_material:
+    - "每个子模型的选择论证（为什么选A不选B，排除的理由）"
+    - "模型修正/迭代的过程说明（如做了二次对数变换的原因）"
+    - "关键数学公式（非全部推导，而是最终使用的方程）"
+
+testing:
+  internal_sources:
+    - "验证结果"
+    - "测试数据分析"
+    - "误差分析"
+  template: "testing.tex"
+  max_pages: 4
+  key_material:
+    - "与替代方法的对比数据（如 Bayesian vs OLS 误差比较）"
+    - "关键结果表（>10 行的完整预测/估计表）"
+    - "模型诊断图（残差图、QQ 图、实际值 vs 预测值）"
+
+sensitivity:
+  internal_sources:
+    - "敏感性分析"
+    - "参数扫描结果"
+  template: "sensitivity-analysis.tex"
+  max_pages: 3
+  key_material:
+    - "每个关键参数 ±20% 的结果变化"
+    - "敏感性排名（哪个参数最影响结论）"
+
+strengths_weaknesses:
+  internal_sources:
+    - "模型局限性"
+    - "优势评估"
+    - "替代方案对比"
+  template: "strengths-weaknesses.tex"
+  max_pages: 2
+  key_material:
+    - "未闭合问题清单中的坦诚不确定性（不得包装为洞察）"
+    - "候选池覆盖率的如实说明"
+    - "模型假设的已知脆弱点"
+
+conclusion:
+  internal_sources:
+    - "最终总结"
+    - "建议"
+  template: "conclusion.tex"
+  max_pages: 1
+
+references:
+  auto: true
+  note: "由 biblatex 自动生成（\\printbibliography）。引用在正文中通过 \\cite{} 标注"
+
+appendix:
+  internal_sources:
+    - "核心代码"
+    - "补充图表"
+  template: "appendix.tex"
+  note: "不超过正文内容的 20%。代码仅放关键片段"
+  key_material:
+    - "每个子问题 ≤15 行的核心算法代码"
+    - "完整的单品/品类结果表（正文放聚合，附录放详表）"
