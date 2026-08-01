@@ -55,15 +55,16 @@ git push          # 上传到 GitHub，别人就能看到了
 
 ### 资源区（`resources/`，队友专用）
 
-**`resources/` 是队友的共享地盘**：不受 PR 限制，可以自由创建子目录、自由修改，直接 push。想分享任何东西，一个资源 = 一个子目录放进去：
+**`resources/` 是队友的共享地盘**：不受 PR 限制，可以自由创建子目录、自由修改，直接 push。
+
+> **两个要求**：① 一个资源一个文件夹，用文件夹分类；② 每个文件夹里放一个 `说明.md`。详细规范见 [resources/README.md](resources/README.md)。
 
 ```
 resources/2024-B优秀论文/
 resources/常用代码片段/
+resources/历届获奖论文/2023/A题/
 resources/skills/math-explainer/   ← 数学讲解 skill（队长贡献，⚠️ 只读使用，不要修改）
 ```
-
-每个子目录放一个 `说明.md`（内容 / 用途 / 来源 / 上传人），commit 写清楚（如 `资源: 添加 xxx`）。详细规范见 [resources/README.md](resources/README.md)。
 
 资源区的内容**只在共享仓内流通，不会同步到队长的核心仓**。
 
