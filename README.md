@@ -57,13 +57,16 @@ git push          # 上传到 GitHub，别人就能看到了
 
 **`resources/` 是队友的共享地盘**：不受 PR 限制，可以自由创建子目录、自由修改，直接 push。
 
-> **两个要求**：① 一个资源一个文件夹，用文件夹分类；② 每个文件夹里放一个 `说明.md`。详细规范见 [resources/README.md](resources/README.md)。
+> **三条规则**：① **链接优先**——插件/软件/工具网站/文章只登记链接，不放原文件（避免 pull 痛苦）；② **按分类存放**——用下面前置的分类目录；③ **登记到 README**——不用单独建说明文档，在 [resources/README.md](resources/README.md) 对应分类的登记表里加一行即可。
 
 ```
-resources/2024-B优秀论文/
-resources/常用代码片段/
-resources/历届获奖论文/2023/A题/
-resources/skills/math-explainer/   ← 数学讲解 skill（队长贡献，⚠️ 只读使用，不要修改）
+resources/插件项目/     ← 工具插件（如 superpower）：登记链接+作用
+resources/软件/         ← 软件：登记链接+用途，不放本体
+resources/工具网站/     ← 在线工具/素材站：登记网址+作用
+resources/文章/         ← 文章/教程：登记链接+来源，不鼓励放原文
+resources/工作流/       ← 工作流程：可放文件或只登记链接
+resources/领域知识/     ← 领域知识：按领域建子目录，注明来源
+resources/skills/math-explainer/   ← 数学讲解 skill（队长贡献，⚠️ 只读使用）
 ```
 
 资源区的内容**只在共享仓内流通，不会同步到队长的核心仓**。
@@ -75,20 +78,23 @@ resources/skills/math-explainer/   ← 数学讲解 skill（队长贡献，⚠�
 
 > `resources/skills/math-explainer/` 特例：数学讲解 skill 虽是队长贡献的共享资源，但放在资源区，**请只读使用（复制到自己项目），不要修改或 push 改动**。
 
-**规则**：临时资源、参考材料统一放 **`resources/`**；**不要把临时文件塞进 `references/` 等共享目录**——那会被同步走且受 PR 保护。
+**规则**：临时资源、参考材料统一放 **`resources/`** 对应分类；新增分类时记得同步更新 [resources/README.md](resources/README.md) 的分类表；**不要把临时文件塞进 `references/` 等共享目录**——那会被同步走且受 PR 保护。
 
 ---
 
-## 四、示例：把一篇论文笔记分享出去
+## 四、示例：分享一个资源
+
+**推荐做法（放链接）**：在 `resources/README.md` 对应分类的登记表里加一行，再提交：
 
 ```bash
 git pull                              # 1. 拉最新
-mkdir resources/论文笔记                # 2. 在资源区建目录
-# 把论文笔记文件放进去（拖拽/复制）
-git add .                             # 3. 暂存
-git commit -m "添加 XXX 论文笔记"      # 4. 提交
+# 2. 编辑 resources/README.md，在对应分类表加一行（名称 | 链接 | 说明 | 上传人）
+git add resources/README.md           # 3. 暂存
+git commit -m "资源: 添加 XXX 链接"    # 4. 提交
 git push                              # 5. 上传
 ```
+
+**需要放文件时**（如工作流、领域知识）：按分类放进 `resources/` 对应目录（如 `resources/工作流/我的流程.md`），README 里同步登记一行，再走同样的 add/commit/push。
 
 ---
 
