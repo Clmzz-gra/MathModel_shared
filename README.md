@@ -159,6 +159,6 @@ git push origin fix-expression                      # 4. 推送分支（不是�
 
 ## 七、约定
 
-- **表达库**全部由人类维护，禁止 AI 修改
+- **表达库**（knowledge/expression-library.md）全部由人类维护，禁止 AI 修改
 - commit 信息写清楚改了什么（如 `添加 2018B 论文笔记`，而不是 `update`）
 - 改共享部分前先 pull；冲突时优先沟通再解决
