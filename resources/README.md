@@ -23,7 +23,7 @@
 
 ## 三、登记表
 
-> 分享时在对应分类下加一行：`名称 | 链接 | 说明 | 上传人`。
+> 分享时（资源加入到resources目录下，不要只登记）在下方对应分类下加一行：`名称 | 链接 | 说明 | 上传人`。
 
 ### 插件项目
 
@@ -36,6 +36,7 @@
 | 名称 | 链接 | 用途 | 上传人 |
 |------|------|------|--------|
 | _（示例）GitHub Desktop | https://desktop.github.com/ | 图形化操作 GitHub | 张三 |
+| Anaconda3 | https://www.anaconda.com/products/desktop | Python 数据科学发行版，自带 conda 包管理与 Jupyter 等工具 | Clmzz-gra |
 
 ### 工具网站
 
