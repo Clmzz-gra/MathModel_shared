@@ -50,7 +50,7 @@ git push          # 上传到 GitHub，别人就能看到了
 | `latex/` | LaTeX 论文模板与样式 |
 | `code-gems/` | 教学级代码范例 |
 | `knowledge/expression-library.md` | **表达库**：写作句式积累（⚠️ 受保护，见第五节） |
-| `.trae/skills/math/` | 数学讲解 skill（队长单向维护，⚠️ 只读使用，不要修改） |
+| `skills/math-explainer/` | 数学讲解 skill（队长单向维护，⚠️ 只读使用，不要修改） |
 
 ### 资源区（`resources/`，队友专用）
 
@@ -70,7 +70,7 @@ resources/常用代码片段/
 | 共享部分（上表目录） | 正式资产，会双向同步，改动需走 PR |
 | 资源区（`resources/` 及子目录） | 随意存放、随意分享、直接 push；不影响共享部分 |
 
-> `.trae/skills/math/` 例外：虽然列在共享部分，但它是**队长贡献的资源**，只供你们使用（复制到自己项目），**不要修改或 push 改动**。
+> `skills/math-explainer/` 例外：虽然列在共享部分，但它是**队长贡献的资源**，只供你们使用（复制到自己项目），**不要修改或 push 改动**。
 
 **规则**：临时资源、参考材料统一放 **`resources/`**；**不要把临时文件塞进 `references/` 等共享目录**——那会被同步走且受 PR 保护。
 
@@ -99,7 +99,7 @@ git push                              # 5. 上传
 - `code-gems/`（教学代码）
 - `knowledge/expression-library.md`（表达库——人类维护的写作资产）
 
-> 直接 push 以上路径会被 GitHub 拒绝，这是正常现象。`resources/` 和 `.trae/skills/math/` 不受此限制。
+> 直接 push 以上路径会被 GitHub 拒绝，这是正常现象。`resources/` 和 `skills/math-explainer/` 不受此限制。
 
 ### 修改受保护文件的 PR 流程
 
