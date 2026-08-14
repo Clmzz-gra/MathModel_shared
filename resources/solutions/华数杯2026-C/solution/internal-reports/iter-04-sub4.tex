@@ -226,8 +226,9 @@ S2 Q4 裁定「允许临时超容 + 超容断言告警」；\texttt{cost\_main} 
 
 三组对照（\texttt{s4-baseline-heuristic.pkl}）：\textbf{A 主解}（EDF 基荷预填 + 层 2 MILP 含储能/卖电）；
 \textbf{B1-EDF 基线}（复用 A 的 dest，全 EDF 贪心，无储能/卖电）；\textbf{B2-电价基线}（复用 A 的 dest，
-全电价贪心——窗口内选最低价小时开工，无储能/卖电）。B1/B2 为纯启发式下界，含超容任务
-4{,}832/5{,}768（slack 78k/182k GH，惩罚不计入成本，\texttt{s4-lns-results.pkl} 哨兵字段核对）。
+全电价贪心——窗口内选最低价小时开工，无储能/卖电）。B1/B2 为纯启发式下界，惩罚不计入成本
+（\texttt{s4-baseline-heuristic.pkl} \texttt{b1}/\texttt{b2} 字段）；B2 因 GPU 容量冲突回退最早小时
+5{,}039 个任务（\texttt{b2.n\_late}，回退仍满足 latest 截止、QoS 100\%，§9 未闭合项 6）。
 
 \subsection{LNS 大规模选时通道}
 \label{sec:lns}
@@ -325,11 +326,10 @@ $\eta_c\eta_d\approx 0.86$。
 \end{tabular}
 \caption{主解与纯启发式基线六指标对比（\texttt{s4-baseline-heuristic.pkl}）：主解成本优于 B1
 $-86.93$M（$-3.9\%$）、优于 B2 $-50.10$M（$-2.3\%$）；碳排略升（$+1.7\%$）来自储能峰谷购电结构。
-\textbf{注}：B1/B2 为无储能纯贪心基线，含超容任务 4{,}832/5{,}768（slack 78k/182k GH，惩罚不计入
-表中成本，\texttt{s4-lns-results.pkl} \texttt{n\_forced\_edf}/\texttt{slack\_edf\_gh} 核对）；主解
-超容仅 1h（318.7 GH）。成本比较为近似口径，「优于 B1」被 B1 超容不计成本系统性高估（§5.4）。
-B2 基线 \texttt{n\_late}=5{,}039（\texttt{b2} 字段）与 \texttt{qos\_pct}=100.0 并存，口径待裁定
-（§9 未闭合项 6）。}
+\textbf{注}：B1/B2 为无储能纯贪心基线，惩罚不计入表中成本（\texttt{s4-baseline-heuristic.pkl}）；主解
+超容仅 1h（318.7 GH），B1 无容量回退（\texttt{b1.n\_late}=0），B2 容量回退 5{,}039 个任务
+（\texttt{b2.n\_late}，回退仍满足 latest 截止、QoS 100\%，§9 未闭合项 6）。成本比较为近似口径
+（基线超容惩罚不入成本，§5.4）。}
 \label{tab:baseline}
 \end{table}
 
@@ -569,8 +569,10 @@ D 区压降空间扩大源于负荷结构与基准差异，非模型能力变化
         「联合优化 vs 顺序优化」的耦合增益}（后者对照未建立）。
   \item \textbf{利用率锚定}：受限消纳口径下新能源利用率不可作为优化目标，论文需说明「利用率=评价
         指标而非目标」的边界。
-  \item \textbf{超容惩罚不入成本}：\texttt{cost\_main} 不含 $10^6$ 元/GH 惩罚项；B1/B2 基线超容
-        任务 4{,}832/5{,}768（slack 78k/182k GH）不计成本，「优于 B1」被系统性高估（近似口径）。
+  \item \textbf{超容惩罚不入成本}：\texttt{cost\_main} 不含 $10^6$ 元/GH 惩罚项；B1 无容量回退
+        （\texttt{b1.n\_late}=0）、B2 容量回退 5{,}039 个任务（\texttt{b2.n\_late}，\texttt{
+        s4-baseline-heuristic.pkl} 字段）——回退任务按最早小时开工仍满足 latest 截止（QoS 100\%），
+        但可能 GPU 超容且其惩罚不入成本，故「优于 B2」被系统性高估（近似口径）。
 \end{enumerate}
 
 \section{基荷策略合理性检验与 EDF 次优性量化}
@@ -678,8 +680,9 @@ $\theta{=}0.3$ 合计 & 2154.35 & 2146.99 & \textbf{2139.60} & $+14.75$M \\
 \bottomrule
 \end{tabular}
 \caption{LNS 结果（\texttt{s4-lns-results.pkl} \texttt{cost\_edf}/\texttt{cost\_b2}/
-\texttt{cost\_final}，$\theta{=}0.3$ 结构、50 轮/区；A/B/C/D 无释放任务沿用主解值 564.48/517.88/
-512.91/142.37）。终值 2139.60M；E/F 终值超容 slack 30{,}953/30{,}944 GH（\texttt{curve} 末轮
+\texttt{cost\_final}，$\theta{=}0.3$ 结构、50 轮/区；A/B/C/D 无释放任务，A/B 为 $\theta{=}0.3$
+结构值（禁改派、承接任务少于主解，故低于主解 578.28/530.06），C/D 与主解相同 512.91/142.37）。
+终值 2139.60M；E/F 终值超容 slack 30{,}953/30{,}944 GH（\texttt{curve} 末轮
 \texttt{slack\_gh} 字段）。}
 \label{tab:lns}
 \end{table}
@@ -699,8 +702,10 @@ $-0.011/-0.009$ M/轮已趋平）。正式图待队友出图替换。}
   \item $\theta{=}0.3$ 结构总成本 \textbf{2139.60M}，比主解 2166.64M 低 27M（1.2\%）——但该比较含
         \textbf{多重口径差异，不可直接解读为「更优构造」}：(i) 禁改派（释放任务留原区）；
         (ii) 任务留 E/F 低价区；(iii) 预填仅 30\%；(iv) \textbf{超容不计成本}——LNS 终值 E/F 区
-        仍含超容（slack 各 $\approx 31$k GH），主解超容仅 318.7 GH（§3.1 口径声明）。各口径对 27M
-        差异的贡献未逐一分离，故 §4.2「EDF 预填未隐没更优解」结论收窄为\textbf{对照集内
+        仍含超容（slack 各 $\approx 31$k GH），主解超容仅 318.7 GH（§3.1 口径声明）；（v）A/B
+        表注原误标「沿用主解值」，实为 $\theta{=}0.3$ 结构值（已纠正，见 tab:lns 表注）。按主解
+        A/B 值替换后合计 2165.58M：27M 差异中约 26M 来自 A/B 结构口径（禁改派承接任务少），仅约
+        1M 来自 E/F 选时改进。故 §4.2「EDF 预填未隐没更优解」结论收窄为\textbf{对照集内
         （B1/B2）成立}。
   \item EDF$\to$LNS 增量 \textbf{$+0.68\%$}（主解成本口径），对比起点与 clean-test 不同：clean-test
         的 2.92\% 是 EDF 起点直接全局选时，此处 0.68\% 是 B2（电价贪心）起点的\textbf{增量改进}；
@@ -708,8 +713,9 @@ $-0.011/-0.009$ M/轮已趋平）。正式图待队友出图替换。}
         78\%）——与 2.92\% 的差距主要来自 $W{=}168$h 邻域截断 + B2 起点已在全窗口选最低价（多在
         168h 外）$\to$ LNS 只能「保持或改早」，排除「改晚到低价时段」方向（恰是 clean-test 大增益
         来源）。\textbf{这是建模选择，非启发式质量}，LNS 增益为截断窗口保守下界。
-  \item 哨兵项：EDF/B2 基准超容任务 4{,}832/5{,}768（slack 78k/182k GH，不计入 \texttt{cost\_main\_M}）；
-        每轮子 MILP gap$\approx 0$；LNS 终值 E/F 区仍含超容（slack 各 $\approx 31$k GH），2139.60M
+  \item 哨兵项：B1/B2 基线容量回退计数 \texttt{b1.n\_late}=0 / \texttt{b2.n\_late}=5{,}039
+        （\texttt{s4-baseline-heuristic.pkl}，不计入 \texttt{cost\_main\_M}）；每轮子 MILP gap$\approx 0$；
+        LNS 终值 E/F 区仍含超容（slack 各 $\approx 31$k GH），2139.60M
         为含超容口径成本，与主解成本比较为近似口径。
 \end{itemize}
 
@@ -800,9 +806,10 @@ LNS 大规模选时（B2$\to$LNS 增量 0.68\%、EDF$\to$LNS 全程约 2.3\%，�
   \item \textbf{场景 eps-0.95 仅 D 可行}：报告需明确「碳约束压降仅 D 区可行」是区域碳排刚性
         （A/B/C $\varepsilon_{\min}\approx0.99$，E/F $\approx0.96$）而非模型缺陷，避免误读为全局
         不可行。
-  \item \textbf{B2 基线 QoS 口径待裁定}：\texttt{s4-baseline-heuristic.pkl} \texttt{b2} 中
-        \texttt{qos\_pct}=100.0 与 \texttt{n\_late}=5{,}039 并存，两字段口径（完成时限 2406 vs
-        窗口内按时）需建模对话澄清后统一论文表述（本次按 pkl \texttt{qos\_pct} 引用）。
+  \item \textbf{B2 基线 QoS 口径已澄清}（建模复核 2026-08-14）：\texttt{s4-baseline-heuristic.pkl}
+        \texttt{b2} 中 \texttt{qos\_pct}=100.0 与 \texttt{n\_late}=5{,}039 不矛盾——\texttt{n\_late}
+        是「GPU 容量冲突时回退到最早小时（lo=arrive）」的\textbf{回退计数}，非迟到任务数；回退后仍满足
+        \texttt{h0+dur$\le$latest} 截止，故 QoS 100\% 自洽。论文按此口径表述，不再视为未决。
 \end{enumerate}
 \endgroup
 
