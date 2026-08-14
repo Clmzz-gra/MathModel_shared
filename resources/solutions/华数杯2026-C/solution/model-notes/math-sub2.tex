@@ -1,0 +1,231 @@
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+
+% STATUS: done
+% LAST_MODIFIED: 2026-08-08
+
+\title{S2 数学推导：碳感知任务调度模型}
+\author{MathModel 建模小组}
+\date{2026-08-08}
+
+\begin{document}
+
+\maketitle
+
+\section{问题形式化}
+
+S2 子问题：以第 0--2399 小时实际到达的 50{,}000 个任务及对应逐时电力参数为输入，
+以\textbf{任务迁移目的地与开工时段}为决策变量，在 GPU 容量、IT/设施功率、网络时延
+SLA 与完成时限约束下，建立\textbf{碳感知任务调度模型}，优化运行成本与碳排放，
+并以网络时延、新能源利用率作为评价指标。
+
+S1 已完成零迁移时间维调度的精确 MILP（5768 变量、472s 收敛）。S2 在其基础上
+放开\textbf{迁移维度}：$\mathcal{M}_j$ 个候选目的地 $\times$ 时间窗口，全时域变量规模
+约 4000 万（F4，S1 验证），直接 MILP 不可行。故采用\textbf{两级分解}（人类裁定）：
+目的地分配层（容量感知贪心）$\to$ 时间维调度层（S1 框架复用，每区域独立 MILP）。
+
+\section{索引与集合}
+
+\begin{align}
+  \mathcal{R} &= \{\text{RegionA},\ldots,\text{RegionF}\},\quad |\mathcal{R}|=6,\\
+  \mathcal{J} &= \{j_1,\ldots,j_{50000}\},\\
+  \mathcal{T} &= \{0,1,\ldots,2405\}, \quad \text{主时域 } 0\text{--}2399 \text{ 到达，} 2400\text{--}2405 \text{ 收尾}.
+\end{align}
+
+\textbf{任务 $j$ 的属性}（来自 workload\_trace.xlsx）：
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+符号 & 物理意义 & 取值/单位 \\
+\midrule
+$A_j$ & 到达小时 & $[0,2399]$, h \\
+$D_j$ & 任务时长（精确小数折算） & $[0.167,6.65]$, h \\
+$g_j$ & GPU 需求 & $[1,127]$, 无量纲 \\
+$L_j$ & 最晚完成小时 & $\le 2406$, h \\
+$s_j$ & 来源区域 & $\mathcal{R}$ \\
+$k_j$ & 任务类型 & RT / Batch / Training \\
+$\ell_j$ & 最大容忍时延 & 20/80/150 ms \\
+$p_j$ & 单位 GPU 功率 & 0.08/0.10/0.16 MW/GPU \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{区域参数}（来自 region\_time\_data.xlsx / GPU\_information.xlsx）：
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+符号 & 物理意义 & 备注 \\
+\midrule
+$\text{Price}(r,t)$ & 区域 $r$ 小时 $t$ 电价 & 元/MWh，468--1096 \\
+$\text{CI}(r,t)$ & 碳强度 & tCO$_2$/MWh，0.196--0.688 \\
+$\text{PUE}(r)$ & 能效比 & 1.25--1.38 \\
+$\text{Cap}_r$ & 可用 GPU & 540--1472 \\
+$\tau(r_1,r_2)$ & 区域间时延 & ms，5--82 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{可行域（MaxLatency 裁剪）}
+
+对任务 $j$，可迁移目的地集合：
+
+\begin{equation}
+  \mathcal{M}_j = \left\{ r \in \mathcal{R} : \tau(s_j, r) \le \ell_j \right\}.
+  \label{eq:reach}
+\end{equation}
+
+\textbf{数据事实（阶段 1.4 P1 核验）}：
+\begin{itemize}
+  \item AITraining（150ms）：$\mathcal{M}_j = \mathcal{R}$，全图 36/36 可达。
+  \item BatchInference（80ms）：34/36 可达；$A \to F = 82\text{ms} > 80$ 被禁。
+  \item RealTimeInference（20ms）：A/B/C 三区互迁（12--15ms）+ E/F 互迁（18ms）+ D 锁死
+        （$D\to E=22$、$D\to F=25$ 均 $>20$；无任何区域可迁入 $D$，因 $A/B/C\to D=58$--$65$、$E/F\to D=22$--$25$）。
+\end{itemize}
+
+裁剪效果：平均候选目的地 4.85 个/任务；仅 D 来源实时任务（488 个，0.98\%）完全锁死。
+
+\section{两级分解模型}
+
+\subsection{层 1：目的地分配（容量感知贪心）}
+
+对每任务 $j$，候选目的地按\textbf{单位成本}排序：
+
+\begin{equation}
+  \hat{r}_j = \arg\min_{\substack{r \in \mathcal{M}_j \\ \mathcal{D}_r + \text{GH}_j \le 0.9 \cdot \text{Cap}_r \cdot 2400}}
+  \Big( \text{PUE}(r) \cdot \bar{\text{Price}}(r) \Big)
+  \label{eq:assign}
+\end{equation}
+
+其中 $\text{GH}_j = g_j D_j$ 为任务 GPU-hour，$\mathcal{D}_r$ 为该区域已分配累计，
+$\bar{\text{Price}}(r)$ 为区域平均电价。若无候选满足 90\% 阈值，退路选择负载率最低区域：
+
+\begin{equation}
+  \hat{r}_j = \arg\min_{r \in \mathcal{M}_j} \frac{\mathcal{D}_r}{\text{Cap}_r \cdot 2400}.
+  \label{eq:fallback}
+\end{equation}
+
+A 类验证 F3：该层实现成本 $-16.6\%$、碳 $-30.4\%$（vs S1 零迁移基线），
+退路仅 117/50000（0.23\%），E/F 负载恰好 90\%、A/B 空置、无超容量。
+
+\subsection{层 2：时间维调度（每区域独立 MILP，S1 框架复用）}
+
+对每个目的地 $r^*_j$，在区域 $r$ 内建立时间索引 0-1 MILP。
+
+\textbf{决策变量}：$x_{j,h} \in \{0,1\}$，任务 $j$ 在小时 $h$ 开工，
+$h \in \mathcal{W}_j = \{h : A_j \le h \le \min(L_j, 2406) - D_j\}$。
+
+\textbf{目标（成本最小化，含电价时移）}：
+
+\begin{equation}
+  \min \sum_{j: r^*_j = r} \sum_{h \in \mathcal{W}_j}
+  \underbrace{g_j p_{k_j} \cdot \text{PUE}(r)}_{\text{单位小时能耗成本系数}} \cdot
+  \text{Price}(r, h) \cdot x_{j,h}
+  \label{eq:obj}
+\end{equation}
+
+\textbf{约束}：
+\begin{enumerate}
+  \item 恰好开工一次：$\sum_{h} x_{j,h} = 1,\ \forall j$。
+  \item GPU 容量（重叠折算，S1 同构）：
+  \begin{equation}
+    \sum_{j} \sum_{h'} a_{j,h',t}\, x_{j,h'} \le \text{Cap}_r - B_{r,t},\quad
+    a_{j,h',t} = g_j \cdot \big|[h', h'+D_j) \cap [t, t+1)\big|.
+    \label{eq:cap}
+  \end{equation}
+  \item 完成时限：由窗口蕴含。
+\end{enumerate}
+
+\subsection{碳排放 $\varepsilon$-约束（决策点 2）}
+
+全局碳排放（含所有区域）：
+
+\begin{equation}
+  E(x) = \sum_{r \in \mathcal{R}} \sum_{j: r^*_j = r} \sum_{h}
+  g_j p_{k_j} \cdot \text{PUE}(r) \cdot \text{CI}(r, h) \cdot x_{j,h}
+  \le \bar{E} = \eta \cdot E_0,
+  \label{eq:eps}
+\end{equation}
+
+其中 $E_0$ 为 S1 零迁移时移基线碳排放（374.28kt），约束上限选取区间
+$[E_{\text{min}}, E_0]$ 的多档值（实测 E$_{\text{min}}$=232.94kt，350--251kt 均收敛自由解 251.78kt，
+仅 $\bar{E}=240$kt 触发让渡 2{,}667 任务收敛于 242.46kt；230/220kt 低于 E$_{\text{min}}$ 不可达）。
+式 \eqref{eq:eps} 为线性约束（系数 $g_j p_{k_j}\text{PUE}(r)\text{CI}(r,h)$ 为常数）。
+
+\textbf{注意}：由于碳排放约束跨区域耦合，层 1 目的地分配与层 2 时间调度为\textbf{迭代}关系
+——先按 $\eta$ 档做目的地分配，再在时间维嵌入式 \eqref{eq:eps} 校验；
+若不满足则微调分配（把高碳区域任务让给低碳区域），迭代至收敛。
+
+\section{评价指标（不进目标）}
+
+\begin{itemize}
+  \item \textbf{网络时延}：$\bar{\tau} = \frac{1}{|\mathcal{J}_{\text{mig}}|} \sum_{j \in \mathcal{J}_{\text{mig}}} \tau(s_j, r^*_j)$，
+        仅统计发生迁移的任务。
+  \item \textbf{新能源利用率}：S2 只评价（通过迁往弃电富余区间接贡献）；
+        正式口径（直接消纳+储能充电+外送）/可用，移交 S3/S4 计算。
+\end{itemize}
+
+\section{简化假设与合理性论证}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{4cm}p{5.2cm}p{4.6cm}}
+\toprule
+假设 & 内容 & 合理性 \\
+\midrule
+A1 两级分解 & 目的地分配与时间调度解耦 & 容量感知 F3 验证可行（退路 0.23\%） \\
+A2 迁移零成本 & 不建模带宽/能耗/费用 & 赛题说明 7 \\
+A3 区域均值电价 & 层 1 用平均电价选目的地 & 层 2 用逐时电价精排，两级互补 \\
+A4 90\% 阈值 & 目的地分配预留容量裕度 & F3 验证 E/F 恰 90\%、无超容量 \\
+A5 碳排迭代收敛 & $\varepsilon$-约束通过分配-调度迭代满足 & 高碳区任务让渡低碳区 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{数学自检}
+
+\begin{enumerate}
+  \item \textbf{量纲}：目标 \eqref{eq:obj} 为元（MW$\times$h$\times$元/MWh）；碳排 \eqref{eq:eps} 为 tCO$_2$；时延为 ms。自洽。
+  \item \textbf{无因变量自包含}：目标系数均来自输入（$g_j,p_{k_j},\text{PUE},\text{Price}$），不含 $x$ 的代数变换。
+  \item \textbf{线性性}：式 \eqref{eq:cap} 的 $a_{j,h',t}$ 为常数系数；\eqref{eq:eps} 亦线性。MILP 可直接求解。
+  \item \textbf{整数解存在}：层 2 每区域任务量 5k--15k，滚动窗后变量量级与 S1 测试窗可比。
+  \item \textbf{收敛性}：层 1 贪心 + 层 2 MILP 迭代，碳排约束单调逼近（高碳让渡），有限步收敛。
+\end{enumerate}
+
+\section{直觉解释（无公式）}
+
+S2 像"物流调度的绿色版"：每件货物（任务）都写着"最晚几号到、路上不能超过多少毫秒的延迟"。
+西部仓库（E/F）电费和碳排放都便宜，但离东部远、延迟高——所以只有"不赶时间"的货物（训练）
+可以全图乱跑；"中等赶时间"的（批量）大多数能跑，只有个别线路超时被禁；"最赶时间"的（实时）
+只能在邻居仓库间移动。
+
+模型分两步：先决定每件货放哪个仓库（看哪家便宜且装得下，90\% 容量红线）；再在每个仓库内
+排"几点开工"（把货尽量排在电价便宜的时段）。最后设定"全公司碳排放不能超过 X 吨"的红线，
+从宽到严试三档，看为减排多花多少钱——这就是给决策者的成本-减排权衡曲线。
+
+\section{假设检验计划}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{3.6cm}p{4.6cm}p{5.4cm}}
+\toprule
+核心假设 & 检验方法 & 结果/状态 \\
+\midrule
+A1 两级分解可行 & F3 容量感知分配 & 通过（退路 0.23\%，无超容量） \\
+A2 迁移零成本 & 赛题说明 7 约束 & 接受（论文讨论节注明边界） \\
+A3 区域均值电价 & 层 2 逐时电价 vs 均价对比 & ⏳ 待补（不影响结论，均价选目的地 + 逐时精排两级互补） \\
+A4 90\% 阈值 & 阈值 80/85/90/95\% 敏感性 & 通过（90\% 退路最低 117，E/F 恰贴阈值，图 sub2-threshold-sensitivity.pdf） \\
+A5 碳排迭代收敛 & $\varepsilon$ 三档 + 紧档位迭代 & 通过（240kt 让渡 2{,}667 任务后收敛于 242.46kt）；350--251kt 均收敛自由解 251.78kt；230/220kt 低于 E$_{\text{min}}$ 不可达 \\
+可行域裁剪 & F1/P1 核验 & 通过（训练 36/36、批量 34/36、实时 E/F 互迁 18ms） \\
+迁移收益量化 & S1 时移基线 vs S2 结果 & 通过（成本 +2.0\%、碳 −32.7\%，迁移 76.4\%，时延 35.3ms） \\
+A/B 空置合理性 & minutil 灵敏度 0/5/10/15\% & 通过（15\% 保底仅 +2.4\%，0\% 为成本最优边界） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}

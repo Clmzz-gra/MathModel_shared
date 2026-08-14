@@ -1,0 +1,131 @@
+% STATUS: final
+% LAST_MODIFIED: 2026-08-05
+\documentclass{internal-report}
+
+\title{子问题1 数学模型：基于主成分分析的供应商重要性安全指数}
+\author{MathModel Team}
+\date{2026年8月5日}
+
+\begin{document}
+
+\maketitle
+
+\section{问题描述}
+
+给定 $n = 402$ 家供应商，每家供应商有 240 周的历史订货量 $o_{t}^{(i)}$ 与供货量 $s_{t}^{(i)}$ 数据。要求建立反映「保障企业生产重要性」的数学模型，筛选出最重要的 50 家供应商。
+
+\section{特征工程}
+
+从原始时间序列中提取 $p = 5$ 个连续数值特征（不含品类标签）：
+
+\subsection{D1--D2: 供货规模与可靠性}
+
+\begin{align}
+    x_1^{(i)} &= \sum_{t=1}^{240} s_{t}^{(i)} &\text{供货总量} \\
+    x_2^{(i)} &= \sum_{t=1}^{240} \mathbb{I}[s_{t}^{(i)} > 0] &\text{供货周数} \\
+    x_3^{(i)} &= \frac{\sum_t \mathbb{I}[s_{t}^{(i)} \ge o_{t}^{(i)} \land o_{t}^{(i)} > 0]}
+                      {\sum_t \mathbb{I}[o_{t}^{(i)} > 0]} &\text{供货满足率} \\
+    x_4^{(i)} &= \operatorname{CV}^{(i)}_{\text{supply}} - \operatorname{CV}^{(i)}_{\text{order}} &\text{供订CV差}
+\end{align}
+
+\subsection{D3: 可靠性趋势}
+
+\begin{equation}
+    x_5^{(i)} = f_{\text{后}}^{(i)} - f_{\text{前}}^{(i)} \in [-1, 1]
+\end{equation}
+
+其中 $f_{\text{前}}^{(i)}$ 为前半段（周 1--120）的供货满足率，$f_{\text{后}}^{(i)}$ 为后半段（周 121--240）。$x_5^{(i)} > 0$ 表示供应商的履约能力在改善。
+
+\subsection{品类处理}
+
+品类标签 $\{A, B, C\}$ 不纳入主成分分析——它是供应商的固定属性而非行为指标。评价结果按品类均衡性自然校验。
+
+\section{主成分分析（PCA）模型}
+
+\subsection{标准化}
+
+对特征矩阵 $\mathbf{X} \in \mathbb{R}^{n \times p}$ 逐列标准化：
+
+\begin{equation}
+    Z_{ij} = \frac{X_{ij} - \mu_j}{\sigma_j}
+\end{equation}
+
+\subsection{主成分提取}
+
+计算相关矩阵（标准化后的协方差矩阵）$\mathbf{R} = \operatorname{corr}(\mathbf{Z}) \in \mathbb{R}^{p \times p}$，特征分解：
+
+\begin{equation}
+    \mathbf{R} \mathbf{v}_k = \lambda_k \mathbf{v}_k, \quad k = 1, \dots, p
+\end{equation}
+
+其中 $\lambda_1 \ge \dots \ge \lambda_p \ge 0$ 为特征值（对应方差），$\mathbf{v}_k$ 为主成分载荷向量，主成分按方差 $\lambda_k$ 降序排列。采用 Kaiser 准则保留 $\lambda_k \ge 1$ 的 $m$ 个主成分（本问题 $m = 2$）。
+
+\subsection{主成分得分}
+
+第 $i$ 家供应商在第 $k$ 个主成分上的得分为主成分载荷与标准化特征的线性组合：
+
+\begin{equation}
+    Y_{ik} = \mathbf{Z}_i \cdot \mathbf{v}_k, \quad k = 1, \dots, m
+\end{equation}
+
+无需旋转——与正式实现（sklearn.decomposition.PCA 的 transform）一致。
+
+\subsection{综合评分与归一化}
+
+第 $k$ 个主成分的方差贡献率为 $\lambda_k / \sum_{j=1}^{p} \lambda_j$。以保留主成分的归一化方差贡献为权重：
+
+\begin{equation}
+    w_k = \frac{\lambda_k}{\sum_{j=1}^{m} \lambda_j}
+\end{equation}
+
+加权求和得到综合评分：
+
+\begin{equation}
+    I_{\text{tmp}}^{(i)} = \sum_{k=1}^{m} w_k \cdot Y_{ik}
+\end{equation}
+
+归一化为供应商重要性安全指数：
+
+\begin{equation}
+    \boxed{I^{(i)} = \frac{I_{\text{tmp}}^{(i)} - \min I_{\text{tmp}}}
+                          {\max I_{\text{tmp}} - \min I_{\text{tmp}}} \in [0, 1]}
+\end{equation}
+
+按 $I^{(i)}$ 降序排列，取前 50 家。
+
+\section{结果}
+
+\subsection{主成分结构}
+
+Kaiser 准则保留 $m = 2$ 个主成分\footnote{特征值：$\lambda_1 = 2.307$，$\lambda_2 = 1.006$，$\lambda_3 = 0.835$。}，累计解释了 $66.1\%$ 的总方差（PC1 占 46.0\%，PC2 占 20.1\%）。主成分载荷：
+
+\begin{itemize}
+    \item \textbf{PC1（综合供应能力，权重 69.6\%）}：供货周数（+0.587）、供货满足率（+0.550）、供货总量（+0.475）、供订CV差（+0.357）
+    \item \textbf{PC2（可靠性改善，权重 30.4\%）}：可靠性趋势（+0.994）
+\end{itemize}
+
+\subsection{Top 50 供应商}
+
+筛选出的 50 家供应商品类分布为 A: 17, B: 16, C: 17——自然均衡，无需外生品类调整。前 5 名与已有论文的交叉验证一致（S229、S361、S140、S108、S151 位居前 5）。
+
+\section{模型假设}
+
+\begin{enumerate}
+    \item \textbf{方差贡献率 $\propto$ 信息量}。主成分分析假设方差越大的主成分包含越多数据结构信息。
+    \item \textbf{线性关系主导}。主成分分析使用线性投影提取潜在结构。
+    \item \textbf{历史行为延续}。过去 240 周的供应商行为模式在未来 24 周基本稳定。
+    \item \textbf{品类不纳入评价}。A/B/C 三类原材料虽有消耗率和价格差异，但在供货行为维度上应公平竞争。品类均衡性由结果自然校验。
+\end{enumerate}
+
+\section{与备选方案的对比}
+
+在方案探索阶段比较了以下路径：
+
+\begin{itemize}
+    \item \textbf{熵权+TOPSIS}：C1/C2/C3 的主流选择，但需手动处理指标独立性（MS-024 警告）和品类权重。
+    \item \textbf{PCA 降维}：2020C4 的信贷安全指数框架，但对 one-hot 品类变量的方差膨胀敏感。
+    \item \textbf{含品类 PCA/FA}：品类 one-hot 在协方差矩阵中产生强烈二分信号，劫持主成分/因子权重，导致 A 类供应商霸榜（Top 50 中 A 类占 46--50 家，经 FA v1/v2 实验实证）。
+    \item \textbf{去品类 PCA（最终方案）}：消除了品类方差绑架，两个主成分解释清晰，品类自然均衡。
+\end{itemize}
+
+\end{document}

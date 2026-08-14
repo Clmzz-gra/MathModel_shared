@@ -1,0 +1,14 @@
+﻿字段名,中文名称,单位,属性,含义与使用说明
+Region,区域编号,无,输入索引,六个区域编号。
+StorageCapacity_MWh,储能容量,MWh,输入约束,区域储能系统最大可存储电量。
+MinSOC_MWh,最小SOC,MWh,输入约束,储能安全运行下限。
+InitialSOC_MWh,初始SOC,MWh,输入参数,调度初始时刻储能荷电状态。
+MaxChargePower_MW,最大充电功率,MW,输入约束,储能每小时最大充电功率。
+MaxDischargePower_MW,最大放电功率,MW,输入约束,储能每小时最大放电功率。
+ChargeEfficiency,充电效率,无量纲,输入参数,SOC递推时使用。
+DischargeEfficiency,放电效率,无量纲,输入参数,SOC递推时使用。
+SellLimit_MW,电网外送功率上限,MW,输入约束,区域新能源富余时允许外送的最大功率。
+Remarks,备注,无,说明字段,说明区域是否具备外送能力。
+MaxGridImport_MW,最大购电功率,MW,输入约束,区域从电网购电的合同/交换功率上限。
+MaxGridExport_MW,最大外送功率,MW,输入约束,区域向电网外送的功率上限，等于 SellLimit_MW。
+SOC_State_Convention,SOC时点口径,无,使用说明,SOC_MWh 为时段末状态；InitialSOC_MWh 为第0小时运行前状态。

@@ -1,0 +1,7 @@
+﻿Region,RegionRole,Total_GPU,Max_IT_Power_MW,PUE,Max_Facility_Power_MW,Reserved_GPU_Ratio,Available_GPU,Max_Workload_GPUh_per_h,CapacityLevel,Remarks
+RegionA,东部高负荷区域/用户侧实时业务中心,700,420,1.35,567.0,0.1,630,630,Medium,靠近用户侧，实时推理需求高，跨区迁移应受时延约束限制。
+RegionB,东部高负荷区域/综合业务中心,650,410,1.35,553.5,0.1,585,585,Medium,承接实时推理与批量推理任务，容量略低于RegionA。
+RegionC,东部高负荷区域/边缘算力节点,600,405,1.38,558.9,0.1,540,540,Medium-Low,可承担部分时延敏感业务，算力容量相对较小。
+RegionD,西部算力中心/低电价大规模训练节点,1600,720,1.28,921.6,0.08,1472,1472,Very High,适合承接AI训练与可延迟批量任务，是主要算力迁移目的地。
+RegionE,新能源资源丰富的光伏区域,1100,560,1.25,700.0,0.08,1012,1012,High,光伏出力较高，可结合新能源消纳进行低碳调度。
+RegionF,风电资源富集区域,1050,540,1.27,685.8,0.08,966,966,High,风电资源较丰富，适合在风电高出力时段承接可迁移负载。

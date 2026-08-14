@@ -1,0 +1,386 @@
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+
+% STATUS: draft
+% LAST_MODIFIED: 2026-08-08
+
+\title{S1 数学推导：GPU 需求预测与基础算力调度}
+\author{MathModel 建模小组}
+\date{2026-08-08}
+
+\begin{document}
+
+\maketitle
+
+\section{问题形式化}
+
+S1 子问题由三段组成：统计（GPU 需求分布与白噪声证明）、预测（短期预测基线）、调度（测试窗 2376--2399 实际到达任务的零迁移基础调度）。本文件给出调度段（主方案 Alpha）的完整数学推导，并附预测段的统计口径。
+
+\subsection{索引与基本集合}
+
+\begin{align}
+  \mathcal{R} &= \{\text{RegionA},\ldots,\text{RegionF}\},\quad |\mathcal{R}|=6, \label{eq:regions}\\
+  \mathcal{J} &= \{j_1,\ldots,j_{N_{\text{test}}}\},\quad N_{\text{test}}=538, \label{eq:tasks}\\
+  \mathcal{J}^{RT} &\subseteq \mathcal{J} \quad\text{实时推理任务（到达即开工），} |\mathcal{J}^{RT}|=160,\\
+  \mathcal{J}^{F} &= \mathcal{J} \setminus \mathcal{J}^{RT} \quad\text{自由任务（训练+批量），} |\mathcal{J}^{F}|=378,\\
+  \mathcal{T} &= \{2376,2377,\ldots,2405\} \quad\text{调度小时索引（2406 仅结算，不安排任务）}.
+\end{align}
+
+\subsection{任务属性参数}
+
+每个任务 $j$ 具有以下给定属性（来自 workload\_trace.xlsx，阶段 0.3 清洗后）：
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+符号 & 物理意义 & 取值/单位 \\
+\midrule
+$A_j$ & 到达小时（= 最早开工小时） & $[2376,2399]$, h \\
+$D_j$ & 任务时长（精确小数折算） & $[0.167,6.65]$, h \\
+$g_j$ & GPU 需求（等效 GPU 数） & $[1,127]$, 无量纲 \\
+$L_j$ & 最晚完成小时 & 训练/批量均为 2406, h \\
+$r(j)$ & 来源区域 & $\mathcal{R}$ \\
+$k(j)$ & 任务类型 & RT / Batch / Training \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+其中 $D_j = \text{EstimatedDuration\_min}_j / 60$（人类决策：精确小数，不用整数小时近似）。
+
+\section{调度模型（主方案 Alpha）}
+
+\subsection{决策变量}
+
+\begin{equation}
+  x_{j,h} \in \{0,1\},\quad j \in \mathcal{J}^{F},\ h \in \mathcal{W}_j,
+  \label{eq:decisionvar}
+\end{equation}
+
+其中候选窗口
+
+\begin{equation}
+  \mathcal{W}_j = \left\{ h \in \mathcal{T} : A_j \le h \le \min(L_j,2406) - D_j \right\}.
+  \label{eq:window}
+\end{equation}
+
+实时任务不设变量：$x_{j,A_j}=1$ 固定（到达即开工）。
+
+\subsection{约束}
+
+\textbf{（C1）恰好开工一次}：
+
+\begin{equation}
+  \sum_{h \in \mathcal{W}_j} x_{j,h} = 1,\quad \forall j \in \mathcal{J}^{F}.
+  \label{eq:c1}
+\end{equation}
+
+\textbf{（C2）GPU 容量（跨小时重叠精确折算）}：对每个区域 $r \in \mathcal{R}$、每个小时 $t \in \mathcal{T}$，
+
+\begin{equation}
+  \underbrace{\sum_{j \in \mathcal{J}^{F}:\, r(j)=r} \ \sum_{h \in \mathcal{W}_j} a_{j,h,t}\, x_{j,h}}_{\text{自由任务占用}}
+  + \underbrace{B_{r,t}}_{\text{实时固定占用}}
+  \;\le\; \text{Cap}_r,
+  \label{eq:c2}
+\end{equation}
+
+其中重叠系数（常数，约束仍为线性）
+
+\begin{equation}
+  a_{j,h,t} = g_j \cdot \left|\,[h,\ h+D_j) \cap [t,\ t+1)\,\right|
+  = g_j \cdot \max\!\big(0,\ \min(h+D_j,\, t+1) - \max(h,\, t)\big).
+  \label{eq:overlap}
+\end{equation}
+
+$B_{r,t}$ 为实时任务在区域 $r$ 小时 $t$ 的固定 GPU-hour 占用（到达即开工，重叠折算同式 \eqref{eq:overlap}）。
+
+\textbf{（C3）完成时限}：由窗口 \eqref{eq:window} 蕴含 $h + D_j \le \min(L_j,2406)$。
+
+\textbf{（C4）功率与时延约束}：阶段 1.1 A 类验证 F5/F6 证明其在零迁移下为惰性约束（IT 功率余量 3.1--4.7 倍、同区时延 5ms 恒满足），不显式建模。论证见 \S\ref{sec:justify}。
+
+\subsection{目标函数（字典序两阶段）}
+
+\subsubsection{阶段一：可行性}
+
+\begin{equation}
+  \min Z_1 = \sum_{r,t} s_{r,t}
+  \quad\text{s.t.}\quad
+  \sum_{j,h} a_{j,h,t} x_{j,h} + B_{r,t} - s_{r,t} \le \text{Cap}_r,\quad s_{r,t} \ge 0.
+  \label{eq:obj1}
+\end{equation}
+
+F3 已证 $Z_1=0$ 可达（实时峰值利用率 $\le 12.6\%$，训练/批量 GPU-hour 占容量 $\le 48.7\%$）。
+
+\subsubsection{阶段二：逐时利用率均衡}
+
+定义区域 $r$ 小时 $t$ 的 GPU 利用率
+
+\begin{equation}
+  u_{r,t} = \frac{\sum_{j,h} a_{j,h,t} x_{j,h} + B_{r,t}}{\text{Cap}_r}.
+  \label{eq:util}
+\end{equation}
+
+\begin{equation}
+  \min Z_2 = U_{\max} - U_{\min},
+  \label{eq:obj2}
+\end{equation}
+
+线性化约束：
+
+\begin{equation}
+  u_{r,t} \le U_{\max},\qquad u_{r,t} \ge U_{\min},\quad \forall r,t.
+  \label{eq:linearization}
+\end{equation}
+
+\textbf{口径说明（关键）}：零迁移下各区域 GPU-hour 总量恒定，故"区域平均利用率"不可被调度改变；真正可均衡的是\textbf{区域内逐时形态}。$Z_2$ 即逐时利用率极差，等价于削峰填谷。实证（B 类）：Alpha 极差 0.6283 vs Beta 0.8398，精确解在该口径显著更优。
+
+\section{预测段统计口径}
+
+\subsection{预测目标序列}
+
+\begin{equation}
+  Y_t = \sum_{j:\, A_j = t} g_j,\quad t = 0,\ldots,2399,
+  \label{eq:yseq}
+\end{equation}
+
+即每小时到达任务的 GPU 需求总量；分类型序列 $Y_t^{(k)}$ 同理（决策点 2：双粒度，总序列 + 3 类型）。
+
+\subsection{简单基线（诚实口径）}
+
+\begin{itemize}
+  \item 常数均值：$\hat{Y}_t = \bar{Y}_{\text{train}}$（训练窗均值外推，\textbf{无测试窗信息泄漏}）。
+  \item Last-Hour：$\hat{Y}_t = Y_{t-1}$。
+  \item 季节朴素 lag24：$\hat{Y}_t = Y_{t-24}$。
+  \item 线性回归：$\hat{Y}_t = \beta_0 + \beta_1 t + \sum_{p \in \{24,168\}} \big(\alpha_p \sin\frac{2\pi t}{p} + \gamma_p \cos\frac{2\pi t}{p}\big)$。
+\end{itemize}
+
+赛题协议切分：0--2351 训练 / 2352--2375 调参 / 0--2375 重训 / 2376--2399 测试；滞后特征预热 168h（有效样本从 $t=168$ 起）。
+
+\subsection{白噪声证明}
+
+对序列 $Y_t$ 计算样本自相关 $\hat{\rho}_k$（lag $k=1,\ldots,200$），全部 $\approx 0$；到达计数近似泊松（mean $\approx 20.8$/h）。结论：序列近乎不可预测，预测段以"白噪声证明 + 简单基线"为叙事（B 类确认线性回归 RMSE 215.4--216.1 仅略优于常数均值 221.0--221.1，提升 $<2.3\%$）。ACF 仅排除线性自相关；为排除非线性依赖、周期结构与横截面因果等其余可预测性来源，B 类阶段补充四重对抗检验，公式与结果见 \S\ref{sec:whitenoise-proof}。
+
+\section{预测段四重统计检验（B 类对抗验证）}
+\label{sec:whitenoise-proof}
+
+对"逐时 GPU 需求近乎不可预测"结论做对抗性检验，覆盖可预测性的四条可能路径：非线性依赖（BDS）、周期结构（Prophet）、非线性记忆（LSTM）、横截面因果（Granger）。全程遵守赛题协议（训练 0--2351 / 调参 2352--2375 / 重训 0--2375 / 测试 2376--2399），无测试窗信息泄漏。判据：相对常数均值基线测试窗 RMSE 提升 $<5\%$ 视为"无实质改善"。
+
+\subsection{T1\quad BDS 非线性依赖检验}
+
+ACF $\hat{\rho}_k \approx 0$ 只能排除\textbf{线性}自相关；若序列存在非线性依赖（GARCH 类波动聚集、阈值效应等），LSTM 等模型仍可能获益。BDS 检验（Brock--Dechert--Scheinkman, 1996）对任意 $m$ 维嵌入依赖结构敏感，原假设 $H_0$：序列 $i.i.d.$。
+
+对样本 $\{Y_t\}_{t=1}^{T}$，定义 $m$ 维嵌入向量 $Y_t^m=(Y_t,\ldots,Y_{t-m+1})$，相关积分
+
+\begin{equation}
+  C_m(\varepsilon) = \frac{2}{(T-m+1)(T-m)}
+    \sum_{s<t} \prod_{i=0}^{m-1} \mathbf{1}\bigl\{|Y_{s+i}-Y_{t+i}| \le \varepsilon\bigr\},
+  \label{eq:bds_corr}
+\end{equation}
+
+取 $\varepsilon = 1.5\,\hat{\sigma}_Y$。BDS 统计量在原假设下渐近标准正态：
+
+\begin{equation}
+  W_{m,T}(\varepsilon) = \sqrt{T-m+1}\,
+    \frac{C_m(\varepsilon) - C_1(\varepsilon)^{m}}{\hat{\sigma}_m(\varepsilon)}
+  \;\xrightarrow[H_0]{d}\;\mathcal{N}(0,1),
+  \label{eq:bds_stat}
+\end{equation}
+
+其中 $\hat{\sigma}_m^2(\varepsilon)$ 为原假设下相关积分渐近方差（Brock et al., 1996）。双侧 $p<0.05$ 拒绝 $H_0$。
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+序列 & $p$（$m=2$） & $p$（$m=3$） & $p$（$m=4$） & 判定 \\
+\midrule
+Total（逐时 GPU 需求） & 0.4004 & 0.8208 & 0.7652 & 不拒绝 $H_0$（$\approx$ i.i.d.） \\
+AITraining & 0.7363 & 0.9130 & 0.7801 & 不拒绝 $H_0$ \\
+BatchInference & 0.3073 & 0.5551 & 0.3440 & 不拒绝 $H_0$ \\
+RealTimeInference & 0.5504 & 0.5769 & 0.7321 & 不拒绝 $H_0$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+全部 $p \ge 0.30$：不仅线性自相关，任意 $m\le 4$ 维的非线性依赖结构亦不存在。
+
+\subsection{T2\quad Prophet 对照检验}
+
+Prophet 将序列分解为趋势与傅里叶周期项：
+
+\begin{equation}
+  Y_t = g(t) + s_{\text{day}}(t) + s_{\text{week}}(t) + \varepsilon_t,
+  \qquad s_p(t) = \sum_{n=1}^{N_p}\Bigl(a_n\cos\frac{2\pi n t}{p} + b_n\sin\frac{2\pi n t}{p}\Bigr),
+  \label{eq:prophet}
+\end{equation}
+
+开启日周期（$p=24$）与周周期（$p=168$）傅里叶项。若序列存在真实周期结构，Prophet 应显著优于常数均值。
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+阶段 & RMSE & MAPE \\
+\midrule
+调参窗 $2352$--$2375$ & 186.4 & 32.7\% \\
+测试窗 $2376$--$2399$ & \textbf{214.7} & 22.6\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+测试窗提升仅 $+2.9\%$（$<5\%$），且调参窗（186.4）显著低于测试窗（214.7）——该"提升"为样本间波动，不具备泛化性：周期结构不存在。
+
+\subsection{T3\quad LSTM 对照检验}
+
+单层 LSTM（16 隐单元），输入=滞后 24h 窗口 $[Y_{t-24},\ldots,Y_{t-1}]$，输出=$\hat{Y}_t$，滚动一步预测；训练于 0--2351，调参窗早停选最优 epoch，归一化统计量仅由训练窗估计。若存在非线性时序记忆，LSTM 应优于均值基线。
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+阶段 & RMSE & 说明 \\
+\midrule
+调参窗最优（早停） & 180.7 & 训练窗内表现 \\
+测试窗 $2376$--$2399$ & \textbf{221.5} & 泛化表现 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+测试窗 LSTM RMSE $=221.5$，较常数均值 $221.1$ 更差（$-0.2\%$）；调参窗 180.7 到测试窗 221.5 的严重退化是典型的"对白噪声过拟合"。
+
+\subsection{T4\quad 跨类型 / 跨区域 Granger 因果检验}
+
+若某序列（如训练任务到达）能 Granger 原因解释目标序列，则可借外生路径提升预测。对候选原因 $X$ 与目标 $Y$，比较受限与不受限回归：
+
+\begin{equation}
+  \text{受限：}\quad Y_t = \alpha_0 + \sum_{i=1}^{p}\alpha_i Y_{t-i} + u_t,
+  \qquad
+  \text{不受限：}\quad Y_t = \alpha_0 + \sum_{i=1}^{p}\alpha_i Y_{t-i}
+    + \sum_{i=1}^{p}\beta_i X_{t-i} + v_t,
+  \label{eq:granger}
+\end{equation}
+
+$H_0$：$\beta_1=\cdots=\beta_p=0$（$X$ 不 Granger 原因 $Y$），检验统计量
+
+\begin{equation}
+  F = \frac{(\text{RSS}_r - \text{RSS}_u)/p}{\text{RSS}_u/(T-2p-1)}
+  \;\sim\; F(p,\, T-2p-1),
+  \label{eq:granger_f}
+\end{equation}
+
+取 $p=3$；判定规则：$\ge 2$ 个滞后阶显著才判"存在因果"（抑制多重检验假阳性）。
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lccccl}
+\toprule
+原因 $X$ & 目标 $Y$ & lag$=1$ & lag$=2$ & lag$=3$ & 判定 \\
+\midrule
+AITraining & BatchInference & 0.4013 & 0.5668 & 0.6724 & 无 \\
+AITraining & RealTimeInference & 0.4697 & 0.4161 & 0.4635 & 无 \\
+BatchInference & AITraining & 0.4507 & 0.6245 & 0.6576 & 无 \\
+BatchInference & RealTimeInference & 0.4565 & 0.6965 & 0.8163 & 无 \\
+RealTimeInference & AITraining & 0.1287 & 0.0699 & 0.1255 & 无 \\
+RealTimeInference & BatchInference & 0.0607 & 0.1541 & 0.2507 & 无 \\
+\midrule
+RegionA & RegionB & 0.1909 & 0.2227 & 0.3928 & 无 \\
+RegionA & RegionD & 0.6930 & 0.7993 & 0.6960 & 无 \\
+RegionB & RegionC & 0.4725 & 0.6015 & 0.7596 & 无 \\
+RegionE & RegionF & 0.7044 & 0.6903 & 0.8560 & 无 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+6 组类型间 + 4 组区域间配对的最小 $p=0.0607$（仍 $>0.05$）：不存在可利用的跨序列因果路径，外生变量预测路线不可行。
+
+\subsection{综合结论与对比表}
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+模型 & RMSE & MAPE & 相对常数均值 \\
+\midrule
+Prophet（日/周季节） & \textbf{214.7} & 22.6\% & $+2.9\%$ \\
+线性回归（周期特征） & 216.1 & 23.1\% & $+2.3\%$ \\
+常数均值（基准） & 221.1 & 23.4\% & --- \\
+LSTM（滚动一步） & 221.5 & 23.4\% & $-0.2\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+四项检验覆盖可预测性的四条路径——线性依赖（ACF）、非线性依赖（BDS）、周期结构（Prophet）、横截面因果（Granger）——全部未推翻白噪声结论；最复杂模型 Prophet 提升仅 $+2.9\%$，低于 $5\%$ 实质改善判据且调参/测试性能倒挂。故预测段口径为：\textbf{统计发现}（逐时需求 $\approx$ i.i.d. 白噪声，到达近似泊松，mean $\approx 20.8$/h）；\textbf{预测模型}（常数均值训练窗均值外推为主，线性回归对照，测试窗 RMSE 221.1/216.1）；\textbf{口径声明}（赛题说明 2：末 24h 调度以实际到达任务为输入，预测误差不影响调度方案）；\textbf{边界说明}（本文证"点预测不可行"；分布预测可用泊松刻画到达过程，属后续工作，不改变点预测结论）。
+
+\section{简化假设与合理性论证}
+\label{sec:justify}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{4.2cm}p{5.2cm}p{4.6cm}}
+\toprule
+假设 & 内容 & 合理性 \\
+\midrule
+A1 零迁移 & 任务只在来源区域运行，调度自由度在时间维 & 人类决策点 1；F3 证可行域宽松，无需迁移 \\
+A2 实时固定 & 实时任务到达即开工 & 赛题规定 + 数据 100\% 符合 \\
+A3 功率惰性 & IT/设施功率约束自动满足 & F5 数学证明：$g_{\max} \cdot \text{Cap} \le 0.16 \times \text{Cap} \ll \text{Max\_IT\_Power}$，余量 3.1--4.7 倍 \\
+A4 时延惰性 & 零迁移=同区 5ms 恒满足 & F6：训练/批量/实时 MaxLatency $\ge$ 5ms \\
+A5 精确小数 & $D_j$ 按分钟/60 折算 & 人类决策；避免整数近似容量偏差 \\
+A6 同质 GPU 池 & 区域 GPU 无型号差异 & 数据无异构信息 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{数学自检}
+
+\begin{enumerate}
+  \item \textbf{量纲一致}：$Z_2 = U_{\max} - U_{\min}$ 无量纲（利用率比值）；$Z_1$ 为 GPU-hour 松弛量（无量纲 GPU 计数）。目标与约束量纲自洽。
+  \item \textbf{无因变量自包含}：预测回归中自变量（$t$, 周期函数, 滞后值）均不含 $Y_t$ 本身或其代数变换；滞后值 $Y_{t-1}$ 等为\textbf{历史}值，非同期因变量。
+  \item \textbf{变换对应}（本模型无 $\ln$/比值变换；列出约束参数映射）：
+    $g_j \to$ GPU-hour 系数 $a_{j,h,t}$（乘重叠长度）；$\text{Cap}_r \to$ 利用率分母；$D_j \to$ 窗口上界。
+  \item \textbf{整数解存在性}：F4 证测试窗 5,768 个 0-1 变量，HiGHS 472s 收敛至最优（status=0）。
+  \item \textbf{线性化正确性}：\eqref{eq:linearization} 中 $u_{r,t}$ 含 $\sum a x$（线性）与常数 $B$、$\text{Cap}$，不等式两侧移项后全为线性，无二次项。
+\end{enumerate}
+
+\section{直觉解释（无公式）}
+
+调度问题好比给 538 个"工作订单"排班，每个订单写着：什么时候到、要占多少台机器、干多久、最晚几点交。约束很简单——每个订单只能开工一次，任何时候一台机器不能同时被两个订单占用；目标是想办法让各区域的机器"忙得均匀"，不要在某个小时挤爆、另一小时闲置。因为订单不允许跨区域（零迁移），所以每个区域的机器只服务本地订单，我们只需要安排"几点开始干"。
+
+数据告诉我们两件事：一是机器非常充裕（最忙也只用掉约一半容量），所以一定排得开；二是订单到达时间完全是随机的（像投硬币），所以"预测下一小时来多少订单"这件事本身就难——我们把"它确实不可预测"这件事作为统计发现写进论文，用最简单的基线做对照即可。
+
+\section{假设检验计划}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{3.6cm}p{4.6cm}p{5.4cm}}
+\toprule
+核心假设 & 检验方法 & 结果/状态 \\
+\midrule
+A1 零迁移可行 & F3 逐时叠加 vs 容量 & ✅ 实时峰值 $\le 12.6\%$，无超容量 \\
+A3 功率惰性 & F5 最坏上界 vs Max\_IT\_Power & ✅ 余量 3.1--4.7 倍 \\
+A4 时延惰性 & F6 MaxLatency vs 同区 5ms & ✅ 全部满足 \\
+A5 精确小数必要 & 敏感性：整数近似 vs 精确折算 & ⏳ 阶段 2.2 补做灵敏度 \\
+白噪声假设 & ACF $\approx$ 0 + 泊松拟合 & ✅ 已证（F1） \\
+MILP 最优性 & HiGHS status=0 + gap=0.01 & ✅ 已证（472s） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{参数物理意义与取值范围汇总}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{2.2cm}p{5.6cm}p{5.6cm}}
+\toprule
+参数 & 物理意义 & 取值范围 \\
+\midrule
+$A_j$ & 任务到达小时 & $[2376,2399]$ \\
+$D_j$ & 时长（小时，精确小数） & $[0.167,6.65]$（=10--399 min/60） \\
+$g_j$ & GPU 需求 & $[1,127]$ \\
+$\text{Cap}_r$ & 区域可用 GPU & A:630, B:585, C:540, D:1472, E:1012, F:966 \\
+$u_{r,t}$ & 逐时 GPU 利用率 & $[0,1]$（约束上限） \\
+$U_{\max}, U_{\min}$ & 全区域逐时利用率极值 & 连续变量，$\ge 0$ \\
+$B_{r,t}$ & 实时任务固定 GPU-hour 占用 & 由数据计算，峰值 $\le 41.6$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}

@@ -1,0 +1,8 @@
+[00:37:17] === UMAP test with numba disabled ===
+[00:37:17] NUMBA_DISABLE_JIT=1 set
+[00:37:18] Loading...
+[00:37:18] X: (267, 16)
+[00:37:18] UMAP fit (no JIT, may be slow)...
+[00:38:06] UMAP done: (267, 2), 47.3s
+[00:38:06] Range: [-0.545,4.574] [-3.634,1.659]
+[00:38:06] === END ===

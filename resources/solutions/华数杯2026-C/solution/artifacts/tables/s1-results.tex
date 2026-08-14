@@ -1,0 +1,51 @@
+% ============================================================
+% S1 结果表（Artifact 登记）— 阶段 2.2 | 2026-08-08
+% 用于 iter-sub1 报告引用；数值与 s1-schedule-test.pkl 一致
+% ============================================================
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+方案 & 逐时利用率极差 & 利用率方差 & 超容量小时 & 求解时间 (s) \\
+\midrule
+Alpha（精确 MILP） & \textbf{0.6283} & 0.043992 & 0 & 472.4 \\
+Beta（贪心启发式） & 0.8398 & \textbf{0.037166} & 0 & $<$1 \\
+\bottomrule
+\end{tabular}
+\caption{S1 基础调度 head-to-head：Alpha 在极差口径胜出（$-$25.2\%），Beta 在方差口径胜出（$+$18.4\%）；两者均满足 GPU 容量约束。}
+\label{tab:s1-head2head}
+\end{table}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lcc}
+\toprule
+预测基线 & RMSE & MAPE \\
+\midrule
+常数均值（训练窗外推） & 221.0 & 23.4\% \\
+线性回归（周期特征） & \textbf{215.4} & 23.1\% \\
+Last-Hour 朴素 & 293.5 & 34.5\% \\
+季节朴素（lag24） & 331.5 & 37.7\% \\
+\bottomrule
+\end{tabular}
+\caption{测试窗 2376--2399 预测基线（诚实口径，无测试窗信息泄漏）：线性回归仅略优于常数均值（提升 2.5\%），GPU 需求序列近乎不可预测（ACF 全滞后 $\approx$0，白噪声证明）。}
+\label{tab:s1-forecast}
+\end{table}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lcc}
+\toprule
+时段 & GPU-hour & 占比 \\
+\midrule
+主窗 [2376,2400) & 46,551 & 77.6\% \\
+收尾 [2400,2406) & 13,435 & 22.4\% \\
+\bottomrule
+\end{tabular}
+\caption{Alpha 调度 GPU-hour 分布：收尾时域承载 22.4\% 结清负载。}
+\label{tab:s1-tail}
+\end{table}

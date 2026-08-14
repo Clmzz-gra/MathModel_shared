@@ -1,0 +1,363 @@
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+
+% STATUS: draft
+% LAST_MODIFIED: 2026-08-08
+
+\title{S4 数学推导：多区域算—储—电协同优化}
+\author{MathModel 建模小组}
+\date{2026-08-08}
+
+\begin{document}
+
+\maketitle
+
+\section{问题形式化}
+
+S4 子问题（问题四）在 S1--S3 基础上建立\textbf{多区域算—储—电协同优化模型}：统一考虑任务迁移、电价、碳排放、可用新能源、储能、区域购售电边界、网络时延及任务异构性，在运行成本、碳排放、网络时延、服务质量、新能源利用率与区域峰值净购电之间权衡，并比较不同碳约束、电价机制与新能源波动场景下的策略变化。
+
+架构采用\textbf{半耦合两级分解}（人类裁定，approach-sub4-confirmed §2.1）：
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+层级 & 作用 & 方法 \\
+\midrule
+层 1 & 任务目的地分配 + 基荷预填 & 容量感知贪心 + P25 矩形 EDF 预填 \\
+层 2 & 每区域时间维调度 + 储能/购售电/新能源 & 0-1 MILP（S1 框架）+ 连续 LP（S3 框架）合并 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+区域电力独立（说明 7，无跨区潮流），故层 2 逐区域独立求解；跨区耦合仅存在于任务迁移（层 1 处理）。
+
+\subsection{索引与基本集合}
+
+\begin{align}
+  \mathcal{R} &= \{\text{RegionA},\ldots,\text{RegionF}\},\quad |\mathcal{R}|=6, \label{eq:regions}\\
+  \mathcal{J} &= \{j_1,\ldots,j_{50000}\},\\
+  \mathcal{T} &= \{0,1,\ldots,2405\},\quad \mathcal{T}^{main}=\{0,\ldots,2399\},\quad
+  \mathcal{T}^{set}=\{2400,\ldots,2405\}.
+\end{align}
+
+\subsection{任务属性参数（workload\_trace.xlsx，阶段 0.3 清洗后）}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+符号 & 物理意义 & 取值/单位 \\
+\midrule
+$A_j$ & 到达小时（=最早开工） & $[0,2399]$, h \\
+$D_j$ & 任务时长（精确小数折算） & $[0.167,6.65]$, h \\
+$g_j$ & GPU 需求（等效 GPU 数） & $[1,127]$ \\
+$L_j$ & 最晚完成小时 & $\le 2406$, h \\
+$s_j$ & 来源区域 & $\mathcal{R}$ \\
+$k_j$ & 任务类型 & RT / Batch / Training \\
+$\ell_j$ & 最大容忍时延 & 20/80/150 ms \\
+$p_{k_j}$ & 单位 GPU 功率 & 0.08/0.10/0.16 MW/GPU \\
+$\text{GH}_j$ & GPU-hour $= g_j D_j$ & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{区域参数}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+符号 & 物理意义 & 备注 \\
+\midrule
+$\text{Cap}_r$ & 可用 GPU & 540--1472 \\
+$\text{PUE}_r$ & 能效比 & 1.25--1.38 \\
+$\text{Price}_{r,t}$ & 购电电价 & 元/MWh, 235--1096 \\
+$\text{SellPrice}_{r,t}$ & 售电电价 & 元/MWh, A/B/C 为 0 \\
+$c_{r,t}$ & 购电碳强度 & tCO$_2$/MWh, 0.196--0.688 \\
+$\text{Avail}_{r,t}$ & 可用新能源 & MW, 500--1100 \\
+$\text{NonAI}_{r,t}$ & 非 AI IT 负荷 & MW（IT 侧，不可调度） \\
+$E^{cap}_r,E^{min}_r,E^{init}_r$ & 储能容量/SOC 下限/初始 & MWh \\
+$P^{ch}_r,P^{dis}_r$ & 充/放电功率上限 & MW \\
+$\eta_c,\eta_d$ & 充/放电效率 & 0.92--0.94 \\
+$\overline{G}_r,\overline{S}_r$ & 购/售电功率上限 & MW（$\overline{S}_r$: A/B/C=0） \\
+$\tau(r_1,r_2)$ & 区域间时延 & ms, 5--82 \\
+$C^{base}_r$ & 区域基准碳排（主时域） & kt \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{可行域（MaxLatency 裁剪）}
+
+对任务 $j$，可迁移目的地集合：
+
+\begin{equation}
+  \mathcal{M}_j = \left\{ r \in \mathcal{R} : \tau(s_j, r) \le \ell_j \right\}.
+  \label{eq:reach}
+\end{equation}
+
+数据事实（阶段 1.4 P1 核验，S2 同源）：
+\begin{itemize}
+  \item AITraining（150ms）：$\mathcal{M}_j=\mathcal{R}$，全图 36/36 可达。
+  \item BatchInference（80ms）：34/36；$A\to F=82\text{ms}>80$ 被禁。
+  \item RealTimeInference（20ms）：A/B/C 三区互迁（12--15ms）+ E/F 互迁（18ms）+ D 锁死。
+\end{itemize}
+
+\section{层 1：目的地分配（容量感知贪心，复用 S2）}
+
+对每任务 $j$，候选目的地按\textbf{单位成本}升序：
+
+\begin{equation}
+  \hat{r}_j = \arg\min_{r \in \mathcal{M}_j,\; \mathcal{D}_r + \text{GH}_j \le 0.9 \cdot \text{Cap}_r \cdot 2400}
+  \Big( \text{PUE}_r \cdot \bar{\text{Price}}_r \Big),
+  \label{eq:assign}
+\end{equation}
+
+其中 $\mathcal{D}_r$ 为区域 $r$ 已分配 GPU-hour 累计，$\bar{\text{Price}}_r$ 为区域平均电价。若无候选满足 90\% 阈值，退路选候选内负载率最低区域：
+
+\begin{equation}
+  \hat{r}_j = \arg\min_{r \in \mathcal{M}_j} \frac{\mathcal{D}_r}{\text{Cap}_r \cdot 2400}.
+  \label{eq:fallback}
+\end{equation}
+
+遍历顺序 = 数据行序（与 S2 \texttt{capacity\_aware\_assign} 完全一致，保证 Q3 方案 A/B 对比口径）。实时任务同样分配目的地（到达即开工，时间维固定）。
+
+\section{基荷预填（新能源基荷匹配策略，S4 核心创新）}
+
+\subsection{基荷矩形}
+
+对区域 $r$，取可用新能源的统计下界（Q1 裁定 P25 分位）：
+
+\begin{equation}
+  \text{Baseload}_r = Q_{25}\big( \text{Avail}_{r,t}: t\in\mathcal{T}^{main} \big) = 588\ \text{MW}\ \ (\text{六区相同}).
+  \label{eq:baseload}
+\end{equation}
+
+其物理含义：75\% 的小时可用新能源 $\ge 588$ MW，是可确定性利用的\textbf{低风险电量信号}（类比核电机组以恒定出力承担基荷的运行哲学；这是可用资源的统计下界，\textbf{非}对消纳能力的保证——阶段 3.1 修订，见 iter-04 §3 绿电供给核验）。
+
+\subsection{逐时 AI IT 配额}
+
+基荷矩形为设施侧功率，折算为 IT 侧并扣除逐时 NonAI 后，得 AI 任务可用的确定性 IT 功率配额：
+
+\begin{equation}
+  \text{Quota}_{r,t} = \max\Big( \frac{\text{Baseload}_r}{\text{PUE}_r} - \text{NonAI}_{r,t},\ 0 \Big),
+  \label{eq:quota}
+\end{equation}
+
+单位为 MW（IT 侧）。逐时化（审查 M-3 修正）：高峰 NonAI 小时配额趋零；需注意 Quota 为可用资源统计下界折算，受限消纳（Used+Rch）为消纳能力观测上限，两者非同一物理量，Quota 部分时段超过消纳能力（阶段 3.1 核验 30--63\% 小时），超出的基荷电力由购电补足（计入购电成本）。
+
+\subsection{EDF 预填}
+
+候选 = 分配到 $r$ 的延迟容忍任务（训练+批量），按 GPU-hour 降序。任务 $j$ 在小时 $h$ 开工可行，当且仅当其运行全程满足：
+
+\begin{align}
+  &\text{(GPU 容量)}\quad
+  \underbrace{\sum_{j'\in\text{placed}} g_{j'} \cdot \big|[h',h'+D_{j'})\cap[t,t+1)\big|}_{\text{已填占用}}
+  + g_j \cdot \big|[h,h+D_j)\cap[t,t+1)\big| \le \text{Cap}_r, \label{eq:edf1}\\
+  &\text{(基荷配额)}\quad
+  \underbrace{\sum_{j'\in\text{placed}} g_{j'} p_{k_{j'}} \cdot \big|[h',h'+D_{j'})\cap[t,t+1)\big|}_{\text{已填 AI IT}}
+  + g_j p_{k_j} \cdot \big|[h,h+D_j)\cap[t,t+1)\big| \le \text{Quota}_{r,t}. \label{eq:edf2}
+\end{align}
+
+初始占用含实时任务固定开工的 GPU + AI IT。窗口 $\mathcal{W}_j^{bl}=\{h: A_j\le h\le \min(L_j,2406)-D_j\}\cap\{h: h+D_j\le 2400\}$（完整落在主时域，跨收尾段交层 2）。
+
+填入成功 $\Rightarrow$ \texttt{baseload=True} + 开工小时固定，不进层 2 MILP 变量空间。
+
+\subsection{第二轮改派}
+
+EDF 失败任务改派至候选内 GPU-hour 负载率最低且未满 90\% 的区域，重试 EDF；成功则更新目的地并同步扣减旧区域账本。仍失败（实测 50 个）进层 2 显式处理。
+
+\subsection{基荷预填实测结果（阶段 1.4，preprocess-sub4.py）}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+区域 & 候选任务 & 基荷填充 & 配额填充率 & 实测瓶颈 \\
+\midrule
+A/B/C & 0 & 改派承接 E/F 溢出 & 7.6\%/6.9\% & 任务供给不足 \\
+D & 4,657 & 4,646 & 17.3\% & 任务供给不足 \\
+E & 15,076 & 11,497 & 72.8\% & 物理 GPU 容量 \\
+F & 13,543 & 10,110 & 70.9\% & 物理 GPU 容量 \\
+\midrule
+全局 & 50,000 & 33,226 (66.5\%) & GPU-hour 95.3\% & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{关键发现}：E/F 是基荷实际主力（GPU 容量锁死下的最大确定性消纳）；D 配额充足但层 1 分配任务供给不足（17.3\%）；A/B 经改派承接溢出启用基荷。基荷任务占全局 GPU-hour 95.3\%——层 2 MILP 变量空间压缩至 $\sim 5\%$，EDF 贪心成为主导调度器（Q3 方案 A/B 对比检验其与全局最优的偏差）。
+
+\section{层 2：每区域独立 MILP（S1 调度框架 + S3 储能框架合并）}
+
+\subsection{决策变量}
+
+对区域 $r$，三类变量：
+
+\emph{时间维调度}（非基荷的自由任务，继承 S1/S2）：
+\begin{equation}
+  x_{j,h} \in \{0,1\},\quad j \in \mathcal{J}^{F}_r,\ h \in \mathcal{W}_j,
+\end{equation}
+其中 $\mathcal{W}_j=\{h: A_j\le h\le \min(L_j,2406)-D_j\}$。基荷任务 $x_{j,h_j^*}=1$ 固定（$h_j^*$ 由 EDF 确定），不进变量空间。
+
+\emph{储能与电力侧}（继承 S3，全部连续变量）：
+\begin{equation}
+  G_t \ge 0,\quad S_t \ge 0,\quad R_t \ge 0,\quad C^g_t \ge 0,\quad C^r_t \ge 0,\quad D_t \ge 0,\quad E_t \in \mathbb{R}.
+  \label{eq:var}
+\end{equation}
+
+\subsection{约束}
+
+\textbf{（C1）恰好开工一次}（非基荷自由任务）：
+\begin{equation}
+  \sum_{h\in\mathcal{W}_j} x_{j,h} = 1,\quad \forall j \in \mathcal{J}^{F}_r.
+  \label{eq:c1}
+\end{equation}
+
+\textbf{（C2）GPU 容量（重叠精确折算，S1 同构）}：对小时 $t$，
+\begin{equation}
+  \underbrace{\sum_{j}\sum_{h'} a_{j,h',t}\, x_{j,h'}}_{\text{非基荷自由任务}}
+  + \underbrace{B^{bl}_{r,t}}_{\text{基荷任务固定占用}}
+  + \underbrace{B^{rt}_{r,t}}_{\text{实时任务固定占用}}
+  \;\le\; \text{Cap}_r,
+  \label{eq:c2}
+\end{equation}
+其中 $a_{j,h,t}=g_j\cdot|[h,h+D_j)\cap[t,t+1)|$，$B^{bl}_{r,t}$、$B^{rt}_{r,t}$ 分别为基荷任务与实时任务在区域 $r$ 小时 $t$ 的固定 GPU-hour 占用。
+
+\textbf{（C3）功率平衡（S3 同构）}：
+\begin{equation}
+  G_t + R_t + D_t = \underbrace{(\text{AI\_IT}_t + \text{NonAI}_t) \cdot \text{PUE}_r}_{\text{设施负荷}}
+  + C^g_t + S_t,\quad \forall t\in\mathcal{T}.
+  \label{eq:c3}
+\end{equation}
+其中 AI 任务的 IT 功率由调度决定：
+\begin{equation}
+  \text{AI\_IT}_t = \sum_j g_j\, p_{k_j} \cdot \text{overlap\_ratio}_{j,t}
+  = \sum_j g_j\, p_{k_j} \cdot \frac{a_{j,h_j^*,t}}{g_j}
+  = \sum_j p_{k_j} \cdot a_{j,h_j^*,t},
+  \label{eq:aiit}
+\end{equation}
+即按任务实际开工（$x$ 或固定 $h_j^*$）逐时叠加。
+
+\textbf{（C4）新能源消纳（受限，S3 B1 同口径）}：
+\begin{equation}
+  R_t + C^r_t \le \text{Absorb}_t \equiv \text{Used}_t + \text{Rch}_t,\quad \forall t,
+  \label{eq:c4}
+\end{equation}
+其中 $\text{Absorb}_t$ 为消纳能力上限（基准观测直消纳 $+$ 新能源充电，c-data 逐时，含结清段实际值）。\textbf{口径实证修正（阶段 2.1）}：原方案采用自由消纳 $R+C^r\le\text{Avail}$，实测可用新能源（500--1100 MW）恒大于负荷（241--652 MW），LP 购电 $\to 0$、碳排 $\to 0$、$\varepsilon=1.00$ 碳上限不绑定、成本为负（卖电套利）——场景对比失效（与 S3 R1 退化同因）。故排除自由消纳，回归受限口径。基荷策略以统计下界提供消纳\textbf{下界}（P25 确定性部分），受限消纳提供\textbf{上界}（电网物理能力观测值），两者兼容。
+
+\textbf{（C5）SOC 递推与边界}：
+\begin{equation}
+  E_t = E_{t-1} + \eta_c (C^g_t + C^r_t) - \frac{D_t}{\eta_d},\quad E_{-1}=E^{init}_r,
+  \label{eq:c5}
+\end{equation}
+\begin{equation}
+  E^{min}_r \le E_t \le E^{cap}_r,\quad E_{2406} \ge E^{init}_r.
+  \label{eq:c6}
+\end{equation}
+
+\textbf{（C6）充放/购售电边界}：
+\begin{equation}
+  0\le C_t\le P^{ch}_r,\quad 0\le D_t\le P^{dis}_r,\quad
+  0\le G_t\le \overline{G}_r,\quad 0\le S_t\le \overline{S}_r.
+  \label{eq:c7}
+\end{equation}
+
+\textbf{（C7）同时充放互斥}：$\eta_c\eta_d<1$ 下同刻充放为纯损耗，成本目标自动排除（F4 实证 0 h），不引入 0-1 变量。
+
+\textbf{（C8）碳排放 $\varepsilon$-约束（主时域）}：
+\begin{equation}
+  \sum_{t\in\mathcal{T}^{main}} G_t\, c_{r,t} \le 10^3\, \varepsilon\, C^{base}_r,\quad
+  \varepsilon\in\{1.00,0.95,0.90\}\ \text{（三档对比）}.
+  \label{eq:c8}
+\end{equation}
+
+\subsection{目标函数}
+
+最小化运行成本（购电 $-$ 卖电收入，全时域含结清段）：
+\begin{equation}
+  \min\; Z_r = \sum_{t\in\mathcal{T}} \big( G_t\, \text{Price}_{r,t} - S_t\, \text{SellPrice}_{r,t} \big),
+  \label{eq:obj}
+\end{equation}
+总成本 $Z=\sum_r Z_r$。GridSell 为\textbf{兜底变量}（Q4 裁定）：中国电价体系下 SellPrice 远低于替代区域购电价，优化结果自然形成"GPU 填满 $\to$ 储能满 $\to$ 剩余新能源外卖"的优先级，不存在"卖电 vs 算力"的主动取舍。
+
+\section{六指标（评价口径，主时域 $\mathcal{T}^{main}$）}
+
+\begin{align}
+  &\text{运行成本：}\quad Z^{main} = \sum_{r}\sum_{t\in\mathcal{T}^{main}} (G_{r,t}p_{r,t} - S_{r,t}q_{r,t}), \label{eq:m1}\\
+  &\text{碳排放：}\quad \mathrm{CO2} = \sum_{r}\sum_{t\in\mathcal{T}^{main}} G_{r,t}c_{r,t}\ \text{(tCO$_2$)}, \label{eq:m2}\\
+  &\text{网络时延：}\quad \bar\tau = \frac{\sum_j \tau(s_j, r_j^*) \cdot \text{GH}_j}{\sum_j \text{GH}_j}\ \text{(ms, GPU-hour 加权)}, \label{eq:m3}\\
+  &\text{服务质量：}\quad \text{QoS} = \frac{\#\{j: \text{按时完成}\}}{50{,}000}, \label{eq:m4}\\
+  &\text{新能源利用率：}\quad
+    \text{REU} = \frac{\sum_{r,t} (\text{Used}^{opt}_{r,t} + \text{Rch}^{opt}_{r,t})}{\sum_{r,t} \text{Avail}_{r,t}}, \label{eq:m5}\\
+  &\text{区域峰值净购电：}\quad \mathrm{Peak} = \max_{r,t\in\mathcal{T}^{main}} (G_{r,t} - S_{r,t})\ \text{(MW)}. \label{eq:m6}
+\end{align}
+
+其中 $\text{Used}^{opt}$、$\text{Rch}^{opt}$ 为优化解的新能源直供与充电（由 $R_t$、$C^r_t$ 给出）。
+
+\section{场景对比设计（Q2 裁定：4-6 组关键对比）}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{llll}
+\toprule
+场景 & 维度变化 & 参数 & 预期观察 \\
+\midrule
+S0 基准 & 无 & $\varepsilon=1.00$，当前电价，基准新能源 & 基荷策略主解 \\
+S1 碳约束趋紧 & $\varepsilon$ & $0.95 / 0.90$ & 任务迁移方向变化；D 基荷承接空间是否启用 \\
+S2 电价机制 & 峰谷价差 & 峰谷价差 $\times 1.5$（Peak 上调） & 时移调度加强；储能套利增强 \\
+S3 新能源波动 & 出力 & 可用新能源 $\pm 20\%$ & 基荷矩形高度变化；利用率与购电权衡 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+方案 A/B 对比（Q3 裁定）：方案 A = 层 2 MILP 直接调度全部任务（无基荷预填）；方案 B = 本方案（基荷预填 + 层 2 调度剩余）。差异 = 基荷策略纯贡献 + EDF 贪心偏差（两者需分离归因）。
+
+\section{求解方法}
+
+\begin{itemize}
+  \item 求解器：\texttt{scipy.optimize.milp}（HiGHS），与 S1/S2 一致；连续部分 \texttt{linprog} 备用验证。
+  \item 规模：基荷预填后每区 0-1 变量数千（D 区为主 $\sim$4--5k）、连续变量 $\sim$7$\times$2406$\approx$1.7 万。
+  \item 求解策略：逐区域独立（区域电力解耦）；并行 6 区 $\approx$ 5--8 min/组；场景 4 组 $\approx$ 1h。
+  \item 终态：$E_{2406}=E_{2405}$，仅施加式 \eqref{eq:c6} 下界，不引入 2406 时点变量。
+\end{itemize}
+
+\section{简化假设与合理性论证}
+
+\begin{enumerate}
+  \item \textbf{半耦合分解}：区域电力独立（说明 7），层 1 分配 → 层 2 独立 MILP。全耦合变量 $\sim$4000 万不可行（S2 F4），分解以 0.23\% 退路代价获得可解性。
+  \item \textbf{迁移免费}：说明 7（正式限问题四适用），不建模带宽/能耗/费用。
+  \item \textbf{基荷预填 EDF 贪心}：基荷任务开工时刻由 EDF 确定而非 MILP 全局最优——偏差量级由 Q3 方案 A/B 对比量化。
+  \item \textbf{受限消纳（S3 B1 同口径，阶段 2.1 实证修正）}：消纳上限 $R+C^r\le Used+Rch$（基准观测，c-data 逐时）。原方案自由消纳 $R+C^r\le Avail$ 实测退化——可用新能源恒大于负荷，LP 购电 $\to0$、碳排 $\to0$、$\varepsilon=1.00$ 不绑定、成本为负，场景对比失效（S3 R1 同因）。\textbf{量纲说明（阶段 3.1）}：P25 为可用资源统计下界、Used+Rch 为消纳能力观测上限，非同一物理量；Quota 超消纳上限 30--63\% 小时，超出的基荷电力由购电补足（iter-04 §3 核验）。
+  \item \textbf{碳基准 = S4 自身 free 解（阶段 2.1 实证修正）}：$\varepsilon$ 上限 $1e3\cdot\varepsilon\cdot C^{ref}_r$，$C^{ref}_r$ 为 S4 无碳约束解碳排（E0\_S4），非 S3 baseline 基准——S4 负荷结构（实时+基荷任务）与 S3 给定负荷不同，E/F 固定负荷最小购电碳排已超 S3 基准（E 121.2 vs 84.6 kt），直接套用 S3 基准导致 $\varepsilon=1.00$ 不可行。\textbf{口径声明（阶段 3.1）}：$\varepsilon=1.00$ 帽值 = 自身 free 解碳排，\textbf{对主解不施加额外约束}，碳排按评价指标解读（S3 帽值为外部 Baseline、有约束信息，语义不同，不跨子问题比较 $\varepsilon$ 数值）。$\varepsilon=0.95$ 实测仅 D 可行（碳排刚性）、$\varepsilon=0.90$ 全不可行，与 S3 定性结论一致（$\varepsilon_{\min}$ 数值分母不同不可直接比较）。
+  \item \textbf{GridSell 兜底}：中国电价体系下卖电收益远低于替代购电成本，不存在"卖电 vs 算力"取舍。
+  \item \textbf{NonAI 固定}（Q4 裁定）：赛题未说明 NonAI 可变，固定处理。
+  \item \textbf{时域口径}：0--2399 主时域（指标评价 + 碳约束）+ 2400--2405 结清段（计成本不计碳）+ 2406 状态结算。
+  \item \textbf{同时充放自动排除}：$\eta_c\eta_d<1$（F4 实证）。
+\end{enumerate}
+
+\section{直觉解释}
+
+S4 的协同本质是三层"搬运"的统一：\textbf{空间搬运}（任务迁往低电价低碳区，层 1）、\textbf{时间搬运}（任务推迟到低价/低碳小时，层 2 调度）、\textbf{能量搬运}（储能把便宜/绿色时段的多余电存到高价/高碳时段用，层 2 储能）。基荷匹配策略把新能源的确定性下界作为"绿色容量信号"——像核电基荷一样恒定、可计划，任务调度的去留不再依赖电价信号的偶然同向性，而是物理可用量的确定性。
+
+\section{假设检验计划}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+核心假设 & 检验方法 & 检验结果（阶段 2.2 回填） \\
+\midrule
+H1 层 2 各区域 MILP 可行 & status$=0$（可行+最优） & \\
+H2 基荷任务不超 GPU/配额 & 后验：基荷占用逐时 $\le$ Cap 且 $\le$ Quota & \\
+H3 同时充放自动排除 & 最优解后验：同刻充放小时数 $=0$ & \\
+H4 $\varepsilon$ 档有效 & 三档成本单调性 + 碳排响应 & \\
+H5 EDF 偏差量级 & Q3 方案 A/B 对比（成本/碳排差异） & \\
+H6 GridSell 兜底成立 & 最优解后验：卖电仅出现在 GPU 满 + 储能满后 & \\
+H7 终态约束可行 & SOC(2406)$\ge$Initial 且 status$=0$ & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}

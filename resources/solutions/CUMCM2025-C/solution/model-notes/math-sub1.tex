@@ -1,0 +1,161 @@
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+% STATUS: draft
+% LAST_MODIFIED: 2026-07-19
+
+\title{问题 1 数学推导—— Y 浓度与孕周/BMI 关系模型}
+\author{MathModel AI}
+\date{2026-07-19}
+
+\begin{document}
+
+\maketitle
+
+\section{符号表}
+
+\begin{tabular}{lll}
+\toprule
+符号 & 含义 & 取值/分布 \\
+\midrule
+$i$ & 孕妇索引，$i=1,\dots,267$ & — \\
+$t$ & 检测次数索引，$t=1,\dots,T_i$，大多数 $T_i=4$ & — \\
+$y_{it}$ & 孕妇 $i$ 第 $t$ 次检测的 Y 染色体浓度 & $\mathbb{R}^{+}$ \\
+$\tilde{y}_{it} = \ln(y_{it})$ & log 变换后的 Y 浓度 & $\mathbb{R}$ \\
+$g_{it}$ & 检测时孕周(周) & $[10, 29]$ \\
+$\bar{g}_i$ & 孕妇 $i$ 所有检测的平均孕周 & — \\
+$\Delta g_{it} = g_{it} - \bar{g}_i$ & 个体内中心化孕周 & — \\
+$\text{BMI}_i$ & 孕妇 $i$ 的 BMI & — \\
+$\text{BMI}_i^* = \text{BMI}_i - \overline{\text{BMI}}$ & 中心化 BMI & — \\
+$\text{PC1}_{it}$ & 测序技术质量第一主成分得分 & 标准化后 \\
+$\text{Month}_m^{(it)}$ & 检测月份哑变量（$m=1,\dots,16$，基线 2023-01） & $\{0,1\}$ \\
+$\alpha_i$ & 个体随机截距 & $\alpha_i \sim \mathcal{N}(0, \tau^2)$ \\
+$\varepsilon_{it}$ & 残差 & $\varepsilon_{it} \sim \mathcal{N}(0, \sigma^2)$ \\
+\bottomrule
+\end{tabular}
+
+\section{模型 A：主模型}
+
+\subsection{模型结构}
+
+$$
+\tilde{y}_{it} = \beta_0 + \underbrace{\beta_1 \cdot \Delta g_{it} + \beta_2 \cdot \text{BMI}_i^*}_{\text{生物学信号}} + \underbrace{\beta_3 \cdot \text{PC1}_{it} + \sum_{m=1}^{16} \gamma_m \cdot \text{Month}_m^{(it)}}_{\text{技术/批次修正}} + \underbrace{\alpha_i}_{\text{个体基线}} + \varepsilon_{it}
+$$
+
+含随机效应的总方差分解：
+
+$$
+\text{Var}(\tilde{y}_{it}) = \tau^2 + \sigma^2
+$$
+
+其中 $\tau^2$ 为个体间基线方差（不可观测的生物学差异），$\sigma^2$ 为残差方差。
+
+\subsection{log 变换的合理性}
+
+原始 Y 浓度偏度 $=0.70$，峰度 $=1.00$，D'Agostino-Pearson $\chi^2 = 152.1, p < 0.001$，拒绝正态性。取自然对数后，条件残差的偏度降至 $-0.55$，峰度降至 $0.20$，显著改善。log 变换的附加优势：回归系数可解释为 Y 浓度相对于基准水平的\textbf{倍数变化率}——$\beta_1$ 意为"孕周每增 1 周，Y 浓度变为原来的 $e^{\beta_1}$ 倍"。
+
+\subsection{为什么用个体内中心化孕周}
+
+若将 $g_{it}$ 直接放入回归，模型会将\textbf{个体间孕周差异}（如孕妇 A 平均检测 12 周，孕妇 B 平均检测 20 周）与\textbf{个体内孕周变化}（同一孕妇从 12 周到 16 周）混为一谈。由于个体间 Y 浓度的基线差异（$\tau^2$）远大于个体内变化，这种混淆会导致孕周系数的估计被严重稀释。个体内中心化 $\Delta g_{it} = g_{it} - \bar{g}_i$ 将模型焦点锁定在"同一个孕妇自身的变化上"，从而正确识别孕周的边际效应。
+
+\subsection{纯技术 PCA 的构造}
+
+从 5 个测序质量变量中提取第一主成分，不包含 Y 浓度和 X 浓度，以避免循环论证：
+
+$$
+\text{PC1}_{it} = 0.392 \cdot z_{\text{读段数}} + 0.176 \cdot z_{\text{GC}} - 0.578 \cdot z_{\text{比对}} + 0.256 \cdot z_{\text{重复}} + 0.645 \cdot z_{\text{过滤}}
+$$
+
+其中 $z_{(\cdot)}$ 为各变量标准化后的值。PC1 解释 25.0\% 的测序技术变异。正的 PC1 得分对应"高过滤比例 + 低比对比例"——即测序质量较差的样本。
+
+\subsection{显著性检验}
+
+\textbf{单个系数}：对 $\beta_1, \beta_2, \beta_3$ 分别做 $t$ 检验：
+
+$$
+t_{\beta_k} = \frac{\hat{\beta}_k}{\text{SE}(\hat{\beta}_k)} \sim t_{n-p-1}
+$$
+
+零假设 $H_0: \beta_k = 0$，备择 $H_1: \beta_k \neq 0$。检验水平 $\alpha = 0.05$。
+
+\textbf{全模型}：$F$ 检验评估所有固定效应联合显著性：
+
+$$
+F = \frac{(\text{TSS} - \text{RSS})/(p)}{\text{RSS}/(n-p-1)} \sim F_{p, n-p-1}
+$$
+
+其中 $p$ 为固定效应参数个数（不含截距），$n=1082$。
+
+\textbf{效应量}：由于 $n=1082 > 500$，必须同时报告效应量而非仅依赖 $p$ 值。报告每系数对应的 Y 浓度倍率因子 $e^{\hat{\beta}_k}$ 及其 95\% 置信区间。
+
+\section{模型 B：中介分析}
+
+\subsection{模型结构}
+
+在模型 A 的基础上加入 X 染色体浓度：
+
+$$
+\tilde{y}_{it} = \beta_0' + \beta_1' \cdot \Delta g_{it} + \beta_2' \cdot \text{BMI}_i^* + \beta_X' \cdot \tilde{x}_{it} + \sum_{m=1}^{16} \gamma_m' \cdot \text{Month}_m^{(it)} + \varepsilon_{it}'
+$$
+
+其中 $\tilde{x}_{it} = X_{it} - \overline{X}$，$X_{it}$ 为 X 染色体浓度。
+
+\subsection{中介效应分解}
+
+X 染色体和 Y 染色体浓度均来自胎儿游离 DNA，反映同一潜在变量——"胎儿 DNA 总浓度"。模型 A 中 $\beta_1$（含 X 不含 X 前的孕周系数）包含了孕周通过"增加胎儿 DNA 总量 → X 和 Y 同步升高"的完整效应。加入 X 后，$\beta_1'$ 仅保留孕周通过其他路径（母体血容量变化、胎盘通透性等）的\textbf{直接效应}。
+
+\textbf{中介比例}：
+
+$$
+\text{Mediation Ratio} = \frac{\beta_1 - \beta_1'}{\beta_1} \times 100\%
+$$
+
+\textbf{控制 X 前后 BMI 系数的稳健性}：
+
+若 BMI 的负效应主要通过"母体血容量稀释胎儿 DNA"实现（即 BMI 高 → 血量大 → 总 DNA 浓度低），则加入 X（代表总 DNA 浓度）后 BMI 系数将大幅下降。若 BMI 效应保持不变，则说明 BMI 的稀释效应独立于胎儿 DNA 总量通道。
+
+\section{数学自检}
+
+\subsection{共线检查}
+
+| 检查项 | 结论 |
+|--------|------|
+| 孕周 $g_{it}$ 是否间接含有 Y 浓度？| 否。孕周独立于 Y 浓度，体外测量 |
+| $\Delta g_{it}$ 是否与 $\alpha_i$ 相关？| 个体内中心化后，$\Delta g_{it}$ 在个体内部均值为 0，与 $\alpha_i$ 无关 |
+| PC1 是否包含 Y 浓度？| 否。PC1 仅从 5 个测序变量构建，Y 和 X 浓度均不在内 |
+| X 浓度是否与 Y 浓度有"循环论证"？| X 和 Y 同源但模型 B 用 X 做\textbf{解释}而非\textbf{预测}，论文中不主张"用 X 预测 Y" |
+
+\subsection{量纲检查}
+
+| 项 | 变换前 | 变换后 | 一致性 |
+|----|--------|--------|--------|
+| $y_{it}$ | Y 浓度（比例，无量纲） | $\tilde{y}_{it} = \ln(y_{it})$（无量纲） | ✓ |
+| $\Delta g_{it}$ | 孕周差（周） | 孕周差（周） | $\beta_1$ 量纲 = 周$^{-1}$ |
+| $\text{BMI}_i^*$ | BMI（kg/m²） | 中心化 BMI（kg/m²） | $\beta_2$ 量纲 = (kg/m²)$^{-1}$ |
+| $\text{PC1}_{it}$ | 无量纲（标准化后） | 无量纲 | $\beta_3$ 无量纲 |
+
+所有项在 log 尺度上量纲一致，通过量纲检查。
+
+\subsection{变换检查}
+
+| 变量 | 不取 log | 取 log | 原因 |
+|------|---------|--------|------|
+| $y_{it}$ | ✓（无必要） | ✓（改善正态性） | 因变量，已取 log |
+| $g_{it}$ | ✓ | ✗ | 孕周已中心化，无需 log |
+| $\text{BMI}$ | ✓ | ✗ | BMI 已中心化，无需 log |
+| X 浓度 | ✓ | ✗ | 已中心化，无需 log |
+
+\section{直觉解释}
+
+这个模型在做什么？
+
+\textbf{用非数学语言}：同样 BMI 的孕妇，越到怀孕后期，血液中的胎儿 Y 染色体片段浓度会稍微高一点——但幅度很小，不像我们之前想的那么明显。真正让 Y 浓度波动大的是每个孕妇自己——每个人都有一个"基线水平"，有的天生偏高，有的天生偏低，这个基线差异解释了大部分变化。此外，测序仪有时"状态不好"（技术噪声）也会拉低数据，我们在 2023 年下半年看到了一次系统性的低迷。把这些都考虑进去后，我们能解释大约 23\% 的整体变化——剩下的 77\% 属于"每个人就是不一样"。
+
+\textbf{一个类比}：Y 浓度就像考试分数。孕周 = 多复习几天的效果（微弱正效应），BMI = 天生的疲劳程度（微弱负效应），测序技术 = 当天精神好不好（批次波动），个体基线 = 每个人的"天赋"（最重要的因素）。
+
+(Bayesian 建模将在问题 2 的极端组处理中引入，此处不详细展开，但已确认为后续阶段的计划方案。)
+
+\end{document}

@@ -1,0 +1,7 @@
+﻿From\To,RegionA,RegionB,RegionC,RegionD,RegionE,RegionF
+RegionA,5,12,15,65,78,82
+RegionB,12,5,14,60,74,79
+RegionC,15,14,5,58,70,76
+RegionD,65,60,58,5,22,25
+RegionE,78,74,70,22,5,18
+RegionF,82,79,76,25,18,5

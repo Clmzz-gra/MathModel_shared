@@ -1,0 +1,115 @@
+% ============================================================
+% S4 结果表（Artifact 登记）— 阶段 2.2 | 2026-08-09
+% 用于 iter-04-sub4 报告引用；数值与 s4-results.pkl /
+% s4-cost-decomposition.pkl / s4-sensitivity.pkl 一致
+% ============================================================
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+指标 & A 主解 & B1-EDF 基线 & B2-电价基线 \\
+\midrule
+运行成本 (M元) & \textbf{2166.64} & 2253.57 & 2216.74 \\
+碳排放 (kt) & 1960.78 & \textbf{1927.03} & 1929.34 \\
+区域峰值净购电 (MW) & 550.0 & 497.1 & 661.6 \\
+网络时延 (ms) & 28.07 & 28.07 & 28.07 \\
+服务质量 QoS (\%) & 100.0 & 100.0 & 100.0 \\
+新能源利用率 (\%) & 20.83 & 20.83 & 20.79 \\
+\bottomrule
+\end{tabular}
+\caption{S4 主解（基荷预填 95.3\% + 层 2 MILP 含储能）与纯启发式基线的六指标对比：主解成本优于 B1 $-$86.93M（$-3.9\%$）、优于 B2 $-$50.10M（$-2.3\%$）；EDF 预填未隐没更优解。碳排略升（$+1.7\%$）来自储能峰谷购电结构。}
+\label{tab:s4-six-metrics}
+\end{table}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lccccc}
+\toprule
+区域 & 成本 (M元) & 碳排 (kt) & 峰值 (MW) & 利用率 (\%) & 角色 \\
+\midrule
+A & 578.28 & 547.08 & 550.0 & 8.5  & 实时为主，改派承接 \\
+B & 530.06 & 487.95 & 520.0 & 10.0 & 实时为主，改派承接 \\
+C & 512.91 & 460.19 & 510.0 & 11.8 & 实时为主（1.5 万任务） \\
+D & 142.37 & 186.37 & 510.0 & 24.8 & 算力中心，基荷 17.3\% \\
+E & 188.36 & 124.45 & 370.0 & 36.0 & 基荷主力 72.8\% \\
+F & 214.67 & 154.75 & 340.0 & 34.0 & 基荷主力 70.9\% \\
+\midrule
+合计 & \textbf{2166.64} & 1960.78 & 550.0 & 20.83 & \\
+\bottomrule
+\end{tabular}
+\caption{S4 主解分区域指标：A/B/C 为实时任务主导（高电价高碳强度），D 为算力中心（低成本 142.37M 得益于电价 423 元/MWh），E/F 为基荷绿电主力（利用率 34--36\%）。}
+\label{tab:s4-region}
+\end{table}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lrl}
+\toprule
+策略项 & $\Delta$ (M元) & 说明 \\
+\midrule
+储能时间搬运 & $+137.71$ & 主贡献；F 区结构性刚需（G+D$>$MaxImport 111h） \\
+卖电 & $-1.40$ & 可忽略（六区合计仅 24.9 GWh） \\
+双禁合计 & $+137.46$ & 储能+卖电联合贡献 \\
+调度（A$_{\text{no\_both}}$ $-$ B1） & $-224.38$ & EDF 基荷 vs 全 EDF 贪心 \\
+\midrule
+总节省 & $-86.93$ & vs B1 基线 2253.57M \\
+\bottomrule
+\end{tabular}
+\caption{S4 成本归因分解（逐项关闭储能/卖电的 MILP 重跑）：储能时间搬运是主要成本项（F 区功率平衡刚需），调度结构贡献最大负项（基荷预填 vs 全 EDF）。}
+\label{tab:s4-decomposition}
+\end{table}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lccccc}
+\toprule
+场景 & 成本 (M元) & 碳排 (kt) & 峰值 (MW) & 利用率 (\%) & 可行性 \\
+\midrule
+S0 基准 & 2166.64 & 1960.78 & 550.0 & 20.83 & 全可行 \\
+碳约束 $\varepsilon=0.95$ & 143.54 & 177.05 & 510.0 & 24.8 & 仅 D 可行 \\
+碳约束 $\varepsilon=0.90$ & --- & --- & --- & --- & 全不可行 \\
+峰谷价差 $\times1.5$ & 2704.16 & 1960.79 & 550.0 & 20.83 & 全可行 \\
+新能源 $+20\%$ & 1959.99 & 1793.03 & 550.0 & 20.83 & 全可行 \\
+新能源 $-20\%$ & 2383.94 & 2128.59 & 550.0 & 20.83 & 全可行 \\
+\bottomrule
+\end{tabular}
+\caption{S4 场景对比：碳约束 $\varepsilon$ 压降仅 D 区可行（其余五区碳排刚性，$\varepsilon_{\min}\approx0.96$--$0.99$）；电价上涨成本线性抬升（碳结构不变）；新能源波动 $\pm20\%$ 成本 $-$206.65M/$+217.30M$ 近似对称。}
+\label{tab:s4-scenario}
+\end{table}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+$\theta$ 档 & 释放任务 & 释放 GH & $\Delta$ (M元) & $\Delta$\%（对主解） \\
+\midrule
+0.7 & 18,461 & 926,855 & $+19.13$ & $+0.88\%$ \\
+0.5 & 23,412 & 1,876,315 & $+45.52$ & $+2.10\%$ \\
+0.3 & 26,099 & 2,825,504 & $+63.24$ & $+2.92\%$ \\
+\bottomrule
+\end{tabular}
+\caption{Clean-test 配对实验（EDF 预填 vs MILP 全局选时）：$\theta$ 越低（释放任务越多），MILP 选时收益越大。现状 95.3\% 预填下 EDF 次优性拖后腿约 0.9\%（$\theta=0.7$ 档），$\theta=0.3$ 档可达 2.92\% 且为下界。}
+\label{tab:s4-clean}
+\end{table}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+区域 & EDF 全量 & B2 贪心（起点） & LNS 终值 & EDF$\rightarrow$LNS \\
+\midrule
+E & 194.81 & 190.72 & 187.15 & $-7.66$M \\
+F & 221.91 & 218.63 & 214.82 & $-7.09$M \\
+$\theta{=}0.3$ 合计 & 2154.35 & 2146.99 & \textbf{2139.60} & $-14.75$M \\
+\bottomrule
+\end{tabular}
+\caption{LNS 大邻域搜索（$\theta=0.3$ 结构，50 轮/区）：EDF 全量 $\rightarrow$ LNS 终值 $+0.68\%$ 主解成本，仅达 clean-test 最优上界（2.92\%）的 23\%——邻域窗口截断 $W=168$h 保守下界，非启发式质量限制。}
+\label{tab:s4-lns}
+\end{table}

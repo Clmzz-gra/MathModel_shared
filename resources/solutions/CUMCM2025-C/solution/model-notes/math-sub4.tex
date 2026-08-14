@@ -1,0 +1,167 @@
+\documentclass[UTF8]{ctexart}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+
+\title{问题 4 数学推导：女胎异常评分模型}
+\author{MathModel AI}
+\date{2026-07-19}
+
+\begin{document}
+
+\maketitle
+
+\section{问题形式化}
+
+设检测样本 $i$（$i=1,\dots,N=605$）的特征向量包含四条染色体 Z 值：
+
+\[
+\mathbf{z}_i = (z_i^{(13)}, z_i^{(18)}, z_i^{(21)}, z_i^{(X)})^T \in \mathbb{R}^4
+\]
+
+另有标注样本子集 $\mathcal{L} \subset \{1,\dots,N\}$（$|\mathcal{L}|=67$），每个标注样本携带标签 $y_i \in \{0,1\}$（$0$：正常，$1$：异常）。
+
+目标：构造评分函数 $S: \mathbb{R}^4 \to \mathbb{R}^+$，使得 $S(\mathbf{z}_i)$ 与异常概率单调正相关，并基于标注样本确定判别阈值。
+
+\section{第一层：GC Bias 校正}
+
+\subsection{动机}
+
+总体 GC 含量 $\gamma_i$（取值范围 $0.3677$--$0.4435$）反映测序文库的 GC 偏好。当 $\gamma_i$ 偏离典型值，测序覆盖度出现系统性偏差，进而污染 Z 值估计。A 类实验证实：$\gamma_i < 0.4$ 的样本 18 号染色体 Z 值均值比正常组高 $45\%$，X 染色体高 $121\%$。此偏差非生物学信号，需在评分前剥离。
+
+\subsection{Loess 校正}
+
+对每条染色体 $k \in \{13,18,21,X\}$，在全部 605 个样本上拟合局部加权回归：
+
+\[
+f^{(k)}(\gamma) = \text{loess}\big(\gamma, z^{(k)}_{\text{raw}}; \ \text{span} = 0.75\big)
+\]
+
+校正后 Z 值：
+
+\[
+\tilde{z}_i^{(k)} = z_{i,\text{raw}}^{(k)} - f^{(k)}(\gamma_i)
+\]
+
+\subsection{合理性论证}
+
+\begin{enumerate}
+    \item \textbf{非参数性}：loess 不对 $f^{(k)}$ 预设函数形式，避免错误假设引入偏差。
+    \item \textbf{$\text{span}=0.75$}：覆盖 $75\%$ 邻域样本，在局部拟合精度与平滑性间取平衡。灵敏度分析验证 $\text{span} \in \{0.5, 0.75, 0.9\}$ 下结果稳定。
+    \item \textbf{加性校正假设}：$Z_{\text{observed}} = Z_{\text{biological}} + f(\text{GC}) + \varepsilon$，即 GC 偏差以加性方式叠加。这在 NGS 领域中类比 Benjamini \& Speed (2012) 的 CAS-CA 方法，被广泛应用于 ChIP-seq 和 CNV 检测。
+\end{enumerate}
+
+\subsection{校正效果}
+
+校正后正常样本（$y_i=0$）的 $\tilde{z}_i^{(k)}$ 均值均接近 0，GC 依赖被消除。校正前后正常样本 Z 值均值对比见表~\ref{tab:gc-corr}。
+
+\begin{table}[h]
+\centering
+\caption{GC 校正前后正常样本 Z 值均值}
+\label{tab:gc-corr}
+\begin{tabular}{lccc}
+\toprule
+染色体 & 校正前 & 校正后 & $R^2$ \\
+\midrule
+13 & 0.455 & 0.023 & 0.138 \\
+18 & 0.808 & 0.050 & 0.087 \\
+21 & -0.139 & -0.009 & 0.048 \\
+X & 0.505 & 0.006 & 0.069 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{第二层：异常评分函数}
+
+\subsection{参考分布估计}
+
+令 $\mathcal{N} = \{i: y_i = 0\}$ 为标注正常样本集（$|\mathcal{N}|=538$）。在 GC 校正后的 Z 值空间上估计参考分布：
+
+\[
+\bar{\boldsymbol{\mu}}_0 = \frac{1}{|\mathcal{N}|} \sum_{i \in \mathcal{N}} \tilde{\mathbf{z}}_i
+\]
+
+\subsection{稳健协方差估计}
+
+预处理阶段 Mardia 检验拒绝多元正态性假设（$p < 0.001$），说明存在离群点可能污染经典协方差矩阵。采用 Minimum Covariance Determinant (MCD) 估计稳健协方差：
+
+\[
+\hat{\Sigma}_{\text{MCD}} = \arg\min_{\Sigma \in \mathcal{S}} \det(\Sigma)
+\]
+
+其中 $\mathcal{S}$ 为覆盖 $h = \lfloor 0.75 \cdot |\mathcal{N}| \rfloor$ 个子样本的协方差矩阵集合。MCD 通过排除最具影响力的 $25\%$ 观测值，抵御离群点的杠杆效应。
+
+\subsection{马氏距离评分}
+
+\[
+S_i = (\tilde{\mathbf{z}}_i - \bar{\boldsymbol{\mu}}_0)^T \hat{\Sigma}_{\text{MCD}}^{-1} (\tilde{\mathbf{z}}_i - \bar{\boldsymbol{\mu}}_0)
+\]
+
+\subsubsection{直觉含义}
+
+$S_i$ 是在考虑了各染色体 Z 值之间的相关性后，样本 $i$ 偏离「正常群体中心」的距离。若四条染色体 Z 值相互独立且方差均为 1，则 $S_i$ 退化为欧氏距离平方 $\sum_k (\tilde{z}_i^{(k)})^2$。但实际 Z 值间存在正相关（如 13 号与 18 号 Z 值 $\rho=0.45$），马氏距离通过 $\hat{\Sigma}_{\text{MCD}}^{-1}$ 将此相关性纳入考量——两个 Z 值同时偏高时，$S_i$ 的增长幅度小于它们独立偏高时的简单加和，因为"一起偏高"在正常群体中比"单独偏高"更常见。
+
+\subsubsection{为何不依赖正态假设}
+
+标准马氏距离下 $S_i \sim \chi^2_4$ 要求数据多元正态。本数据不满足该假设，但我们不将 $S_i$ 用于假设检验——它仅作为样本排序的连续评分。阈值 $\tau^*$ 由下文的 ROC 校准确定，不依赖 $\chi^2$ 分位数。因此非正态性不构成实质威胁。
+
+\subsection{染色体边际贡献分解}
+
+对评分超过阈值的样本，需要定位嫌疑人染色体。定义染色体 $k$ 的边际贡献：
+
+\[
+\Delta S_i^{(k)} = \frac{(\tilde{z}_i^{(k)} - \bar{\mu}_0^{(k)})^2}{\hat{\sigma}_k^2}
+\]
+
+其中 $\hat{\sigma}_k^2 = [\hat{\Sigma}_{\text{MCD}}]_{kk}$。$\Delta S_i^{(k)}$ 最大的染色体为最可疑异常源。注意此处简单分解忽略了协方差项，仅作为定性指向而非精确分解。
+
+\section{第三层：阈值校准与分类}
+
+\subsection{ROC 分析}
+
+对标注样本（按孕妇代码去重后），逐一对阈值候选 $\tau$ 计算：
+
+\[
+\text{TPR}(\tau) = \frac{|\{i \in \mathcal{L}: y_i = 1,\ S_i \geq \tau\}|}{|\{i \in \mathcal{L}: y_i = 1\}|}
+\]
+
+\[
+\text{FPR}(\tau) = \frac{|\{i \in \mathcal{L}: y_i = 0,\ S_i \geq \tau\}|}{|\{i \in \mathcal{L}: y_i = 0\}|}
+\]
+
+遍历 $\tau$ 绘制 ROC 曲线，以 Youden 指数最大化确定最优阈值：
+
+\[
+\tau^* = \arg\max_{\tau} \big( \text{TPR}(\tau) - \text{FPR}(\tau) \big)
+\]
+
+报告 AUC（ROC 曲线下面积）作为评分函数的整体判别能力。
+
+\subsection{三分类输出}
+
+\[
+\text{判定}_i = \begin{cases}
+\text{高风险异常}, & S_i \geq \tau^* \text{ 且 } \max_k \Delta S_i^{(k)} > \theta_{\text{min}} \\[4pt]
+\text{不确定/需复检}, & \tau_{\text{lower}} \leq S_i < \tau^* \\[4pt]
+\text{低风险}, & S_i < \tau_{\text{lower}}
+\end{cases}
+\]
+
+其中 $\tau_{\text{lower}}$ 为 $\text{TPR}=0.95$ 对应的阈值（宁可多报不漏报），$\theta_{\text{min}}$ 为防止评分略超阈值但无突出染色体贡献的情况。
+
+\subsection{样本权重说明}
+
+标注样本中 18 个孕妇出现重复（同一孕妇多次检测均异常），ROC 分析时按孕妇代码去重，保留最新一次检测。这确保每个孕妇在 ROC 中只有一票，避免多次检测的孕妇人为膨胀样本量。
+
+\section{后续验证项目}
+
+不在本推导中展开但需在阶段 2.1-2.2 执行的验证：
+
+\begin{enumerate}
+    \item \textbf{MCD 稳定性}：$h=0.75$ 与 $h=0.5$ 下 $\hat{\Sigma}_{\text{MCD}}$ 差异，验证结果对 MCD 超参数不敏感
+    \item \textbf{校正前后 AUC 对比}：原始 Z 值的 AUC vs GC 校正后 Z 值的 AUC，量化 GC 校正的增益
+    \item \textbf{标注偏差分析}：对比标注样本与全体样本的特征分布（BMI、年龄、孕周），评估校准集是否代表总体
+    \item \textbf{41 条 Z 异常无标签样本}：在评分体系中自然归类，不强行贴标签
+    \item \textbf{标注样本内部验证}：留一法交叉验证 ROC，评估阈值稳定性
+\end{enumerate}
+
+\end{document}

@@ -1,0 +1,229 @@
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{float}
+
+\title{问题 1 内部报告：Y 染色体浓度与孕周/BMI 关系建模}
+\author{MathModel AI}
+\date{2026-07-19}
+% STATUS: done
+% LAST_MODIFIED: 2026-07-19
+
+\begin{document}
+
+\maketitle
+
+\section{问题重述与分析}
+
+\subsection{题目要求}
+
+分析胎儿 Y 染色体浓度与孕妇孕周数和 BMI 等指标的相关特性，给出关系模型并检验显著性。
+
+\subsection{数据特征}
+
+男胎 1082 条检测记录，来自 267 位独立孕妇（多数每人 4 次纵向检测，时间跨度 10--25 周）。Y 染色体浓度 $\geq 4\%$ 为检测可靠标准——这是 NIPT 能够给出有效结果的前提，因此 Y 浓度的建模直接决定后续子问题中「何时可以安全检测」的判断。
+
+\subsection{核心难点：横向信号被个体基线淹没}
+
+初步探索揭示了一个结构性困难：Y 浓度与孕周的横向 Spearman 相关系数仅 $\rho=0.084$（可忽略），与 BMI 仅 $\rho=-0.155$。这并非因为没有效应——而是因为不同孕妇的 Y 浓度基线差异可达 3--4 倍，个体间基线差异（占总变异约 65\%）完全淹没了任何群体层面的孕周或 BMI 趋势。
+
+这意味着：\textbf{横截面回归在此问题上将一无所获。必须利用数据的纵向结构——剥离个体基线后，在同一孕妇内部观察 Y 浓度的变化规律。}
+
+\subsection{对下游子问题的接口意义}
+
+本问题的产出（$\hat{\beta}_1$：个体内孕周斜率，$\hat{\beta}_2$：BMI 效应）直接为子问题 2/3 提供参数基础。但需注意：子问题 2/3 实际使用直接计数法确定达标时点，不依赖 $\hat{\beta}_1$ 的外推预测——这是因 CV $R^2=0.248$ 偏低而采取的保守策略。
+
+\section{探索性分析}
+
+\subsection{正态性与变换}
+
+Y 浓度偏度 $=0.70$，峰度 $=1.00$，D'Agostino-Pearson $p<0.001$。取 $\tilde{y} = \ln(y)$ 后偏度降至 $-0.55$，超额峰度 $0.20$。
+
+\subsection{相关性分析}
+
+Spearman 秩相关（图~\ref{fig:heatmap}）：
+
+\begin{itemize}
+    \item Y 浓度 $\sim$ 孕周：$\rho=0.084$（可忽略）
+    \item Y 浓度 $\sim$ BMI：$\rho=-0.155$（弱负相关）
+    \item Y 浓度 $\sim$ X 染色体浓度：$\rho=0.474$（最强）
+\end{itemize}
+
+横向相关性微弱。个体内中心化后孕周效应被清晰检测到——个体间基线差异淹没了群体趋势。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.55\textwidth]{E:/MathModel/problems/2025/C题/outputs/figures/sub1-correlation-heatmap.pdf}
+\caption{Spearman 秩相关矩阵}
+\label{fig:heatmap}
+\end{figure}
+
+\subsection{月份批次效应}
+
+2023 年 9--12 月 Y 浓度系统性偏低（达标率从 86\%--94\% 骤降至 65\%--72\%），提示实验室操作因素的批次效应（图~\ref{fig:batch}）。引入月份哑变量控制。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{E:/MathModel/problems/2025/C题/outputs/figures/sub1-monthly-batch-effect.pdf}
+\caption{各月份 Y 浓度均值及达标率}
+\label{fig:batch}
+\end{figure}
+
+\section{模型 A：主模型}
+
+\subsection{模型结构}
+
+个体内中心化回归框架：
+
+\begin{equation}
+\tilde{y}_{it} = \beta_0 + \beta_1 \Delta g_{it} + \beta_2 \text{BMI}_i^* + \sum_{k=1}^{4} \theta_k \text{Tech}_{it}^{(k)} + \sum_{m=1}^{16} \gamma_m \text{Month}_m^{(it)} + \varepsilon_{it}
+\label{eq:modelA}
+\end{equation}
+
+其中：
+\begin{itemize}
+    \item $\Delta g_{it} = g_{it} - \bar{g}_i$：个体内中心化孕周。
+    \item $\text{BMI}_i^*$：中心化 BMI。
+    \item $\text{Tech}^{(1\sim4)}$：标准化后四项测序质量控制指标——原始读段数、比对比例、重复读段比例、过滤比例。
+    \item $\text{Month}_m^{(it)}$：月份哑变量（基线 2023-01）。
+\end{itemize}
+
+\subsection{GC 含量分析}
+
+赛题规定 GC 含量正常范围为 $40\%\sim60\%$。男胎数据中 41.7\% 的样本总 GC 含量低于 40\% 下限（全部为偏低，无一偏高）。将数据按 GC 正常（$\geq 40\%$）和 GC 偏低（$<40\%$）分组对比：
+
+\begin{itemize}
+    \item Y 染色体浓度均值：GC 正常组 $0.0768$，GC 偏低组 $0.0777$——几乎一致。
+    \item Y 浓度达标率（$\geq 4\%$）：GC 正常组 $86.7\%$，GC 偏低组 $86.5\%$——无差异。
+\end{itemize}
+
+GC 含量对 Y 染色体浓度无实质影响，关键在于 Y 浓度的计算方式：Y 浓度 = Y 染色体 reads / 总 reads。GC 偏差对分子和分母产生同向影响，在比值中被自然约消。模型 A 中 GC 含量作为候选技术协变量检验，结果为 $t=1.34, p=0.18$，与上述实证一致——总体 GC 含量不影响 Y 浓度的建模和后续推理，因此从最终模型中剔除。\footnote{此处指总体 GC 含量（GC含量列）；染色体特异性 GC 差异（如 $\Delta$GC$_{18,13}$）在问题 4 中作为判别特征，两者为不同指标。}
+
+\subsection{参数估计与检验}
+
+表~\ref{tab:coef} 报告核心系数估计，图~\ref{fig:forest} 展示置信区间。
+
+\begin{table}[H]
+\centering
+\caption{模型 A 系数估计}
+\label{tab:coef}
+\input{E:/MathModel/problems/2025/C题/solution/artifacts/tables/sub1-final-coefficients.tex}
+\end{table}
+
+\begin{itemize}
+    \item \textbf{孕周（个体内）}：$\hat{\beta}_1 = +0.055, t=13.96, p<0.001$。每周 Y 浓度增加约 $e^{0.055}\approx 5.7\%$。
+    \item \textbf{BMI}：$\hat{\beta}_2 = -0.029, t=-6.97, p<0.001$。BMI 每高 1，Y 浓度降约 $3\%$。中介分析显示加入 X 浓度后 BMI 系数几乎不变（$-0.029 \rightarrow -0.023$），表明 BMI 的负效应独立于胎儿 DNA 总量通路。此统计模式与文献记载的血浆体积稀释机制一致（Wang et al., 2013）。
+    \item \textbf{技术协变量}：读段数 $t=-4.54^{***}$，过滤比例 $t=3.68^{***}$，重复读段 $t=2.44^{*}$，比对比例 $t=-1.82$（边缘）。
+    \item \textbf{全模型}：$R^2=0.294, F(22,1059)=20.06, p<10^{-16}$，留一孕妇 CV $R^2_{\text{CV}} = 0.248$。
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{E:/MathModel/problems/2025/C题/outputs/figures/sub1-final-coefficients.pdf}
+\caption{核心系数估计及 95\% 置信区间}
+\label{fig:forest}
+\end{figure}
+
+\subsection{模型诊断}
+
+残差 Q-Q 图（图~\ref{fig:resid}）显示近似正态；残差 vs 拟合值图无喇叭形或弯曲模式。异方差轻微存在（低拟合区 SD=0.46 vs 高拟合区 SD=0.34），HC3 稳健标准误验证显示最大膨胀比仅 1.255（BMI），所有变量仍高度显著（$|t| > 2.6$），对推断无实质影响。CV 验证中线性形式完胜样条和指数（Wilcoxon $p<0.001$），确认固定斜率模型为最优选择。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{E:/MathModel/problems/2025/C题/outputs/figures/sub1-residual-diagnostics.pdf}
+\caption{残差诊断}
+\label{fig:resid}
+\end{figure}
+
+\subsection{效应量评估}
+
+\begin{itemize}
+    \item 留一孕妇 CV $R^2 = 0.248$：模型在未见过的孕妇上的预测能力。
+    \item 个体间基线差异约占总变异的 65\%——Y 浓度的大部分变异来自不可观测的生物学基线。
+    \item 孕周直接贡献约 10\%，BMI 约 5\%，技术+批次共约 10\%。
+\end{itemize}
+
+\section{模型 B：中介分析}
+
+加入 X 染色体浓度（与 Y 同源，反映"胎儿 DNA 总浓度"）拆解孕周效应传递路径：
+
+\begin{equation}
+\tilde{y}_{it} = \beta_0' + \beta_1' \Delta g_{it} + \beta_2' \text{BMI}_i^* + \beta_X' X_{it}^* + \text{constrols} + \varepsilon_{it}'
+\end{equation}
+
+关键结果（表~\ref{tab:mediation}）：加入 X 后孕周系数从 $+0.055$ 降至 $+0.045$（下降 21.3\%），BMI 系数几乎不变（$-0.029 \rightarrow -0.023$）。说明孕周对 Y 的影响中约 21\% 通过"胎儿发育 $\to$ DNA 总量增加"间接实现，BMI 的负效应与此通路在统计上独立，与文献记载的稀释机制一致。全样本 $R^2$ 提升至 $0.441$。
+
+\begin{table}[H]
+\centering
+\caption{中介分析对比}
+\label{tab:mediation}
+\input{E:/MathModel/problems/2025/C题/solution/artifacts/tables/sub1-mediation-table.tex}
+\end{table}
+
+图~\ref{fig:mediation} 展示中介效应路径。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{E:/MathModel/problems/2025/C题/outputs/figures/sub1-mediation-diagram.pdf}
+\caption{孕周 $\rightarrow$ Y 浓度的中介效应路径}
+\label{fig:mediation}
+\end{figure}
+
+\section{个体层面验证}
+
+\subsection{个体轨迹}
+
+图~\ref{fig:traj} 展示 9 位孕妇的 Y 浓度纵向轨迹。约 54\% 的孕妇 Y 浓度单调递增，45\% 波动；个体间基线差异显著（同一孕周 Y 浓度可差 3--4 倍）。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{E:/MathModel/problems/2025/C题/outputs/figures/sub1-individual-trajectories.pdf}
+\caption{9 例典型孕妇的 Y 浓度纵向轨迹}
+\label{fig:traj}
+\end{figure}
+
+\subsection{首次达标时间 vs BMI}
+
+各 BMI 组首次 Y$\geq$4\% 的孕周中位数（图~\ref{fig:firstpass}）：$[20,28)$ 12.7 周、$[28,32)$ 12.7 周、$[32,36)$ 12.9 周、$[36,40)$ 15.8 周、40+ 19.6 周。BMI$\geq$36 晚 3--7 周。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{E:/MathModel/problems/2025/C题/outputs/figures/sub1-first-pass-vs-bmi.pdf}
+\caption{首次 Y$\geq$4\% 的孕周 vs BMI}
+\label{fig:firstpass}
+\end{figure}
+
+\section{与文献的一致性}
+
+Wang et al. (2013) 在 22,384 例大样本中报告胎儿 cfDNA 占比随孕周缓慢上升（约 0.1\%/周），与母体体重显著负相关（p=0.0003）。本研究发现的方向与文献一致。本数据达标率（86.6\%）低于文献正常体重组（97\%--99\%），与题目"大多为高 BMI"一致。
+
+\section{模型假设与局限}
+
+\subsection{核心假设}
+\begin{enumerate}
+    \item \textbf{条件对数正态性}：log 变换后残差近似正态（偏度 $-0.55$，Q-Q 图可接受）。
+    \item \textbf{个体内线性孕周效应}：CV 验证中线性完胜样条和指数（Wilcoxon p<0.001）。
+    \item \textbf{批次效应可加}：CV 验证中未因该假设退化。
+\end{enumerate}
+
+\subsection{局限}
+\begin{enumerate}
+    \item CV R²=0.248：65\% 的变异来自个体不可观测的生理基线差异。
+    \item 极端 BMI 区域稀疏（$[20,28)$ 19 人、40+ 18 人）——系数估计和预测的可靠性有限。
+    \item 个体随机斜率未纳入——受限于部分孕妇仅 1--2 次检测。
+    \item 异方差轻微存在（低区 SD=0.46 vs 高区 SD=0.34），但 HC3 稳健标准误验证确认不影响所有显著性结论。
+    \item 注意：子问题2/3 中使用直接计数法确定达标时点，不依赖 $\hat{\beta}_1$ 的外推预测。
+\end{enumerate}
+
+\section{对后续问题的接口}
+
+\begin{itemize}
+    \item \textbf{问题 2}：$\hat{\beta}_1$（孕周斜率）用于预测达标时间；$\hat{\beta}_2$ 量化 BMI 对达标时间的延迟效应。
+    \item \textbf{问题 3}：模型框架可直接扩展（加入年龄、IVF 等），极端组在问题 3 中做 Bayesian shrinkage。
+    \item \textbf{问题 4}：技术变量控制方法可迁移用于女胎测序质量控制。
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,27 @@
+﻿字段,含义,单位,变量属性
+Hour,调度时段编号，0–2399，共2400小时。,h,输入索引
+Region,区域编号，包括RegionA至RegionF。,无,输入索引
+PricePeriod,峰谷平电价时段，Valley/Flat/Peak。,无,输入参数
+ElectricityPrice_CNY_per_MWh,从电网购电价格。,元/MWh,输入参数
+SellPrice_CNY_per_MWh,新能源富余外送或售电价格。,元/MWh,输入参数
+CarbonIntensity_tCO2_per_MWh,区域电网单位购电碳排放强度。,tCO2/MWh,输入参数
+AITrainingPower_MW,AI训练任务对应的基准IT功率需求。,MW,基准状态/建模参考
+GPU_Utilization_Percent,基准运行状态下GPU利用率。,%,基准状态/对比指标
+AvailableRenewable_MW,本区域当前时段可用新能源出力。,MW,输入参数
+UsedRenewable_MW,基准运行中直接用于满足数据中心负荷的新能源功率。,MW,基准结果/优化对比
+RenewableCharge_MW,基准运行中用于给储能充电的新能源功率。,MW,基准结果/优化对比
+Curtailment_MW,基准运行中未被负荷、储能或外送消纳的弃风弃光功率。,MW,基准结果/优化对比
+IT_Load_MW,数据中心IT侧负荷。,MW,基准状态/约束参考
+Total_Load_MW,设施侧总负荷，按IT_Load_MW × PUE计算。,MW,基准状态/约束参考
+GridPurchase_MW,从电网购电总功率，包含直接供负荷购电和GridCharge_MW。,MW,基准结果/优化对比
+GridCharge_MW,从电网购电用于储能充电的功率，用于体现峰谷电价套利和储能预充电。,MW,基准结果/优化对比
+GridSell_MW,新能源富余外送或售电功率。,MW,基准结果/优化对比
+NetGridImport_MW,净购电功率，等于GridPurchase_MW - GridSell_MW。,MW,基准结果/优化对比
+CarbonEmission_tCO2,购电产生的碳排放量，等于GridPurchase_MW × CarbonIntensity_tCO2_per_MWh。,tCO2,基准结果/优化对比
+DemandResponseLevel,需求响应状态等级，表示该区域负荷调节压力或响应强度。,无量纲,输入参数/状态参考
+SOC_MWh,储能系统时段末荷电状态。,MWh,基准状态/优化状态变量
+ChargePower_MW,储能总充电功率，等于RenewableCharge_MW + GridCharge_MW。,MW,基准结果/优化对比
+DischargePower_MW,储能放电功率。,MW,基准结果/优化对比
+Baseline_AI_IT_Load_MW,基准AI IT负荷（按来源区域到达即运行的任务轨迹和功率映射计算，仅用于拆分基准负荷）,MW,基准对照值
+NonAI_IT_Load_MW,非AI固定IT负荷（不随任务迁移改变；优化时与调度形成的AI IT负荷相加）,MW,输入参数
+DataPeriod,数据时段标识（Main_0_2399为主时域；Closure_2400_2406仅用于结清末端任务）,无,使用说明

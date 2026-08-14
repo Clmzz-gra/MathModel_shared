@@ -1,0 +1,127 @@
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{graphicx}
+
+% STATUS: draft
+% LAST_MODIFIED: 2026-07-18
+
+\title{2025 C题 初始分析报告}
+\author{MathModel AI}
+\date{2026-07-18}
+
+\begin{document}
+
+\maketitle
+
+\section{问题重述}
+
+NIPT（无创产前检测）是一种通过采集母体外周血、检测胎儿游离 DNA 片段以分析染色体异常的产前检测技术。本问题要求：
+
+\begin{enumerate}
+  \item 分析胎儿 Y 染色体浓度与孕妇孕周数、BMI 等指标的相关特性，建立关系模型并检验显著性。
+  \item 对男胎孕妇按 BMI 合理分组，确定每组最佳 NIPT 时点，最小化潜在风险，分析检测误差影响。
+  \item 综合考虑身高、体重、年龄等多因素、检测误差和达标比例，给出 BMI 分组和最佳 NIPT 时点。
+  \item 对女胎孕妇，基于 21/18/13 号染色体非整倍体判定结果，综合考虑 X 染色体 Z 值、GC 含量、读段数等因素，给出女胎异常判定方法。
+\end{enumerate}
+
+\section{子问题拆解}
+
+\subsection{问题 1：Y 染色体浓度与孕周/BMI 的关系建模}
+
+\begin{itemize}
+  \item \textbf{核心变量}：Y 染色体浓度（因变量）、孕周（自变量）、BMI（自变量）
+  \item \textbf{可能方法}：
+    \begin{itemize}
+      \item 多元线性/非线性回归
+      \item Logistic 生长曲线模型（Sigmoid 型增长）
+      \item 广义加性模型（GAM）
+      \item 分段回归
+    \end{itemize}
+  \item \textbf{显著性检验}：F 检验、t 检验、$R^2$、残差诊断
+  \item \textbf{预期产出}：$Y_{\text{conc}} = f(\text{孕周}, \text{BMI}) + \varepsilon$
+\end{itemize}
+
+\subsection{问题 2：BMI 分组与最佳 NIPT 时点（单因素）}
+
+\begin{itemize}
+  \item \textbf{核心假设}：BMI 是影响 Y 染色体浓度最早达标时间的主要因素
+  \item \textbf{数据依赖}：使用问题 1 的模型预测各 BMI 分组的达标时间
+  \item \textbf{风险函数}：$R(t) = w_1 \cdot \text{检测不准风险} + w_2 \cdot \text{治疗窗口风险}$
+  \item \textbf{优化目标}：最小化每组孕妇的总体潜在风险
+  \item \textbf{误差分析}：检测误差（Z 值置信区间）对时点选择的影响
+\end{itemize}
+
+\subsection{问题 3：多因素下的 BMI 分组与时点优化}
+
+\begin{itemize}
+  \item \textbf{扩展因素}：年龄、身高、体重、IVF 妊娠、检测抽血次数等
+  \item \textbf{达标比例}：每组内 Y 染色体浓度 $\geq 4\%$ 的孕妇比例
+  \item \textbf{优化框架}：多约束下的分组 + 时点联合优化
+  \item \textbf{方法候选}：聚类分析 + 组内优化、决策树分组、动态规划
+\end{itemize}
+
+\subsection{问题 4：女胎异常判定}
+
+\begin{itemize}
+  \item \textbf{参考标准}：AB 列（21/18/13 号染色体非整倍体判定结果）
+  \item \textbf{特征集}：X 染色体 Z 值、13/18/21 号染色体 Z 值、GC 含量、读段数、比对比例、BMI 等
+  \item \textbf{方法候选}：
+    \begin{itemize}
+      \item 逻辑回归（可解释性强）
+      \item 随机森林/XGBoost（分类性能好）
+      \item 支持向量机（小样本分类）
+      \item Z 值多阈值联合判定
+    \end{itemize}
+  \item \textbf{评估指标}：准确率、召回率、精确率、F1-score、AUC
+\end{itemize}
+
+\section{相关知识覆盖}
+
+\subsection{知识库相关卡片}
+
+\begin{itemize}
+  \item \textbf{MS-024}（熵权法+TOPSIS）：可用于女胎异常判定的多指标综合评价
+  \item \textbf{MS-026}（Soft Voting 集成学习）：可用于女胎异常的多模型集成分类
+  \item \textbf{MS-010}（Spearman vs Pearson 选择策略）：用于问题 1 的相关性方法选择
+  \item \textbf{MS-005}（K-means++ 分层模型）：可用于 BMI 的合理分组
+  \item \textbf{MS-042}（K-means 分群与聚类数确定）：分组数的确定方法
+  \item \textbf{AL-016}（XGBoost）：可用于问题 4 的女胎分类
+  \item \textbf{PF-005}（大样本下 p 值失效）：提醒问题 1 显著性检验的效应量评估
+  \item \textbf{PF-007}（类别不平衡）：女胎异常数据可能存在类别不平衡
+  \item \textbf{PR-005}（模糊概念操作化）：检测时点的"最佳"定义需要操作化
+\end{itemize}
+
+\subsection{知识空白}
+
+\begin{itemize}
+  \item 胎儿 DNA 浓度与孕周的生物增长模型（非线性的 S 形曲线等）
+  \item NIPT 检测时点优化的风险-收益权衡建模
+  \item 染色体 Z 值的多变量联合判定方法
+  \item 检测误差在 NIPT 中的传播建模
+\end{itemize}
+
+\section{初始建模假设}
+
+\begin{enumerate}
+  \item Y 染色体浓度随孕周增加呈 Logistic/Sigmoid 增长趋势，受 BMI 负向调节。
+  \item 最早达标时间（$T_{\text{达标}}$）是 Y 染色体浓度曲线达到 4\% 的时间点。
+  \item 潜在风险由两部分构成：检测不准风险（时点过早导致浓度不足 4\%）和治疗窗口损失风险（时点过晚导致发现延迟）。
+  \item 孕妇可在一定孕周范围内多次检测，但应尽量减少检测次数。
+  \item 女胎的异常判定基于染色体 Z 值的联合分布，健康胎儿的 Z 值服从标准正态分布。
+\end{enumerate}
+
+\section{待解决的开放问题}
+
+\begin{enumerate}
+  \item Y 染色体浓度增长曲线的具体函数形式（Logistic、Gompertz 或其他？）
+  \item 风险函数中检测不准风险与治疗窗口风险的具体权重如何确定？
+  \item BMI 分组的最佳数量和方法（K-means、决策树分割、或基于风险的优化分割？）
+  \item 女胎异常判定中类别不平衡的处理策略（过采样、欠采样、代价敏感学习？）
+  \item 检测误差（测序质量指标如 GC 含量、比对比例等）如何量化并纳入模型？
+  \item 对于多次检测的孕妇数据，如何处理重复测量带来的相关性？
+\end{enumerate}
+
+\end{document}

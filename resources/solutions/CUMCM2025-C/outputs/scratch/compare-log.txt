@@ -1,0 +1,6 @@
+数据: 1082 条, 267 人
+
+OLS:            CV R2=0.2482  RMSE=0.4088
+RandomForest:   CV R2=0.2414  RMSE=0.4106
+
+delta vs OLS:   -0.0068

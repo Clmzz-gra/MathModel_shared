@@ -1,0 +1,217 @@
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+
+% STATUS: draft
+% LAST_MODIFIED: 2026-08-08
+
+\title{S3 数学推导：储能协同优化 LP}
+\author{MathModel 建模小组}
+\date{2026-08-08}
+
+\begin{document}
+
+\maketitle
+
+\section{问题形式化}
+
+S3 子问题（问题三）在给定任务调度与逐时负荷（说明 4：设施负荷 $=$ IT$\times$PUE，由 $Total\_Load$ 给定）基础上，仅优化储能充放电、购售电及新能源分配，最小化运行成本并在碳排约束下评估储能系统对\textbf{运行成本、碳排放、区域峰值净购电功率、负荷波动程度}四项指标的影响。本文件给出主方案（储能协同优化 LP）的完整数学推导。
+
+时域口径（说明 6）：主时域 $0$--$2399$ 为问题三四项指标评价窗口；$2400$--$2405$ 为结清段（仍计入成本结算，储能继续运行）；$2406$ 仅做 SOC 状态结算（$E_{2406}=E_{2405}$，不设决策变量）。
+
+\subsection{索引与基本集合}
+
+\begin{align}
+  \mathcal{R} &= \{\text{RegionA},\ldots,\text{RegionF}\},\quad |\mathcal{R}|=6, \label{eq:regions}\\
+  \mathcal{T} &= \{0,1,\ldots,2405\},\qquad \text{全时域（含结清段）},\\
+  \mathcal{T}^{main} &= \{0,\ldots,2399\},\quad \mathcal{T}^{set} = \{2400,\ldots,2405\}.
+\end{align}
+
+\subsection{参数（每区域 $r\in\mathcal{R}$，逐时 $t\in\mathcal{T}$）}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{llll}
+\toprule
+符号 & 物理意义 & 取值/单位 & 来源 \\
+\midrule
+$\mathrm{Load}_{r,t}$ & 设施负荷（$=IT\times PUE$） & $241$--$652$ MW & region\_time\_data \\
+$\mathrm{Avail}_{r,t}$ & 可用新能源 & $500$--$1100$ MW & region\_time\_data \\
+$\mathrm{Used}_{r,t}$ & 基准直消纳（消纳能力基准） & 全局 min 33 / max 554 / 均值 153 MW & region\_time\_data \\
+$\mathrm{Rch}_{r,t}$ & 基准新能源充电（消纳能力基准） & 全局均值 $\approx 15$ MW（合计 0.21 TWh） & region\_time\_data \\
+$p_{r,t}$ & 购电电价 & $235$--$1096$ CNY/MWh & region\_time\_data \\
+$q_{r,t}$ & 卖电电价 & $0$--$510$ CNY/MWh（A/B/C 为 0） & region\_time\_data \\
+$c_{r,t}$ & 购电碳强度 & $0.196$--$0.688$ tCO$_2$/MWh & region\_time\_data \\
+$E^{cap}_r$ & 储能容量 & $300$--$900$ MWh & storage\_information \\
+$E^{min}_r$ & SOC 下限 & $=$ 容量 $\times 10\%$ MWh & storage\_information \\
+$E^{init}_r$ & 初始 SOC（Hour 0 前） & $=$ 容量 $\times 45\%$ MWh & storage\_information \\
+$P^{ch}_r,\ P^{dis}_r$ & 充/放电功率上限 & $85$--$260$ MW & storage\_information \\
+$\eta_c,\ \eta_d$ & 充/放电效率 & $0.93/0.92$（A/B/C）、$0.94/0.93$（D/E/F） & storage\_information \\
+$\overline{S}_r$ & 卖电功率上限（SellLimit） & A/B/C 为 0；D 180、E/F 220 MW & storage\_information \\
+$\overline{G}_r$ & 购电功率上限 & $340$--$550$ MW & storage\_information \\
+$C^{base}_r$ & 区域基准碳排（主时域口径，kt） & $84.56$--$581.27$ kt & F2 核验 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+新能源可用序列六区域同分布（均值 800、min 500、max 1100 MW，F7），但按区域独立入模。
+
+\subsection{决策变量（每区域 $r$，$t\in\mathcal{T}$）}
+
+\begin{align}
+  G_{r,t} &\ge 0\quad\text{购电功率（MW）}, \label{eq:varG}\\
+  S_{r,t} &\ge 0\quad\text{卖电功率（MW）},\\
+  R_{r,t} &\ge 0\quad\text{新能源直供（MW）},\\
+  C^{g}_{r,t} &\ge 0\quad\text{电网充电功率（MW）},\\
+  C^{r}_{r,t} &\ge 0\quad\text{新能源充电功率（MW）},\\
+  D_{r,t} &\ge 0\quad\text{放电功率（MW）},\\
+  E_{r,t} &\in \mathbb{R}\quad\text{SOC（时段末状态，MWh）}.
+\end{align}
+
+弃电量 $\mathrm{W}_{r,t} = \mathrm{Avail}_{r,t} - R_{r,t} - C^{r}_{r,t}$ 由约束 \eqref{eq:c2} 隐含非负，不设独立变量。总充电 $C_{r,t} = C^{g}_{r,t} + C^{r}_{r,t}$。
+
+\section{约束}
+
+\subsection{（C1）功率平衡}
+
+\begin{equation}
+  G_{r,t} + R_{r,t} + D_{r,t} = \mathrm{Load}_{r,t} + C^{g}_{r,t} + S_{r,t},\quad \forall r,\ t\in\mathcal{T}.
+  \label{eq:c1}
+\end{equation}
+
+与赛题统一口径等价：$GridPurchase + AvailableRenewable + Discharge = Total\_Load + Charge + GridSell + Curtailment$（F5 实测残差 $\le 0.0002$ MW 自洽）。
+
+\subsection{（C2）新能源消纳上限（受限消纳，B1 裁定 2026-08-08）}
+
+\begin{equation}
+  R_{r,t} + C^{r}_{r,t} \le \mathrm{Used}_{r,t} + \mathrm{Rch}_{r,t},\quad \forall r,\ t\in\mathcal{T}.
+  \label{eq:c2}
+\end{equation}
+
+消纳能力（直供+新能源充电）逐时锚定基准观测值 $\mathrm{Used}+\mathrm{Rch}$（电网物理消纳能力的现实上限，决策日志 2.1-B1）；约束允许储能重排"直供 $\leftrightarrow$ 充电"分配（$C^r$ 在总限内自由）。弃电 $\mathrm{W}_{r,t}=\mathrm{Avail}_{r,t}-R_{r,t}-C^{r}_{r,t}\ge 0$ 由基准口径 $\mathrm{Used}+\mathrm{Rch}\le\mathrm{Avail}$ 蕴含。原自由消纳式 $R+C^r\le\mathrm{Avail}$ 因导致 LP 退化（$G\approx0$、Pareto 单点）已弃用，见决策日志 2.1-R1。
+
+\subsection{（C3）SOC 递推}
+
+\begin{equation}
+  E_{r,t} = E_{r,t-1} + \eta_c C_{r,t} - \frac{D_{r,t}}{\eta_d},\quad
+  E_{r,-1} = E^{init}_r,\ \forall r,\ t\in\mathcal{T}.
+  \label{eq:c3}
+\end{equation}
+
+$E_{r,t}$ 为时段末状态；Hour 0 前状态即为 $E^{init}_r$。SOC 递推为线性等式，LP 直接入模（F3 复核残差：逐时口径 $\le 0.0001$ MWh）。
+
+\subsection{（C4）SOC 边界与终态硬约束}
+
+\begin{equation}
+  E^{min}_r \le E_{r,t} \le E^{cap}_r,\quad \forall r,\ t\in\mathcal{T},
+  \label{eq:c4}
+\end{equation}
+
+\begin{equation}
+  E_{r,2406} = E_{r,2405} \ge E^{init}_r\quad\text{（赛题说明 5）}.
+  \label{eq:c5}
+\end{equation}
+
+说明：基准轨迹自身 D/E/F 违反 \eqref{eq:c5}（F3），故其不可作合规对照；本模型显式施加。
+
+\subsection{（C5）充放功率与购售电边界}
+
+\begin{equation}
+  0 \le C_{r,t} \le P^{ch}_r,\qquad 0 \le D_{r,t} \le P^{dis}_r,\quad \forall r,t,
+  \label{eq:c6}
+\end{equation}
+
+\begin{equation}
+  0 \le G_{r,t} \le \overline{G}_r,\qquad 0 \le S_{r,t} \le \overline{S}_r,\quad \forall r,t.
+  \label{eq:c7}
+\end{equation}
+
+\subsection{（C6）同时充放互斥}
+
+不显式引入 0-1 互斥变量：因 $\eta_c\eta_d<1$，同刻同时充放产生纯损耗，在成本最小化目标下不可能最优（A 类验证 F4：基准轨迹同时充放 $=0$ h 全部区域）。若最优解出现同刻充放（理论不可能），由后验检查拦截。
+
+\section{目标函数与碳约束}
+
+\subsection{目标：最小化运行成本（含结清段结算）}
+
+\begin{equation}
+  \min\ Z_r = \sum_{t\in\mathcal{T}} \big( G_{r,t}\,p_{r,t} - S_{r,t}\,q_{r,t} \big),\quad r\in\mathcal{R}.
+  \label{eq:obj}
+\end{equation}
+
+分区域独立求解（说明 7 无跨区潮流），总成本 $Z=\sum_r Z_r$。
+
+\subsection{碳排 $\varepsilon$-约束（时域口径已统一；$\varepsilon$ 档位实证修订 2026-08-08）}
+
+\begin{equation}
+  \underbrace{\sum_{t\in\mathcal{T}^{main}} G_{r,t}\,c_{r,t}}_{\text{主时域碳排（tCO$_2$）}}
+  \;\le\; 10^3\,\varepsilon\, C^{base}_r,\quad
+  \varepsilon = 1.00\ \text{（主解）},\ \forall r.
+  \label{eq:carbon}
+\end{equation}
+
+\textbf{口径统一说明（阶段 1.5 审查项 \#1 定稿）}：约束域取\textbf{主时域 $\mathcal{T}^{main}$（0--2399）}，与分母 $C^{base}_r$（F2 主时域基准）同口径。理由：(i) 结清段 2400--2405 的购电碳排 $\approx 0$（基准中 A/B/C 无购电、D/E/F 净购电为负），不属问题三指标评价窗口；(ii) 保持 $\varepsilon$ 档分母与 F2 叙事完全一致。结清段购电仍计入成本 \eqref{eq:obj}；若需最严格化，可追加结清段全局碳帽（灵敏度可选，默认不设）。
+
+\textbf{$\varepsilon$ 档位实证（2026-08-08 全档重跑核验）}：原三档 $\varepsilon\in\{0.90,0.95,1.00\}$ 中 $\varepsilon<1.00$ 档\textbf{全部 6 区域不可行}（HiGHS status=2）；二分法测定各区域碳排可压降极限 $\varepsilon_{\min}$：A 0.9935（$\to577.49$ kt，较基准 $-0.65\%$）、B 0.9939（$516.53$，$-0.61\%$）、C 0.9941（$480.96$，$-0.59\%$）、D 0.9694（$254.91$，$-3.06\%$）、E 0.9575（$80.96$，$-4.26\%$）、F 0.9617（$108.73$，$-3.83\%$）。机理：受限消纳把新能源钉在基准低水平（A/B/C 总消纳仅 $8$--$12\%$），储能容量/功率相对负荷有限，且低电价时段恰为高碳时段，购电加权碳强度已近下限。\textbf{结论：主解取 $\varepsilon=1.00$（碳排 $\le$ 基准锁定），碳排作为四项评价指标报告；$\varepsilon_{\min}$ 表给出区域碳排可压降区间}。碳排权衡口径与 S2 的差异在论文注明。
+
+\textbf{量纲自检}：左侧单位 tCO$_2$，$C^{base}_r$ 单位 kt，故乘 $10^3$ 换算（$1$ kt $=10^3$ t）；左侧与右侧同为 tCO$_2$ $\checkmark$。
+
+\section{四项指标（评价口径，主时域 $\mathcal{T}^{main}$）}
+
+\begin{align}
+  &\text{运行成本：}\quad Z_r^{main} = \sum_{t\in\mathcal{T}^{main}} (G_{r,t}p_{r,t} - S_{r,t}q_{r,t}), \label{eq:m1}\\
+  &\text{碳排放：}\quad \mathrm{CO2}_r = \sum_{t\in\mathcal{T}^{main}} G_{r,t}c_{r,t}\ \text{(tCO$_2$)} \equiv \text{式 \eqref{eq:carbon} 左端}, \label{eq:m2}\\
+  &\text{区域峰值净购电：}\quad \mathrm{Peak}_r = \max_{t\in\mathcal{T}^{main}} (G_{r,t} - S_{r,t})\ \text{(MW)}, \label{eq:m3}\\
+  &\text{负荷波动程度（净购电 std，主指标）：}\quad
+    \sigma^{Net}_r = \operatorname{std}_{t\in\mathcal{T}^{main}} (G_{r,t} - S_{r,t})\ \text{(MW)}, \label{eq:m4}\\
+  &\text{辅指标（峰谷差）：}\quad
+    \mathrm{Range}_r = \max_t (G_{r,t}-S_{r,t}) - \min_t (G_{r,t}-S_{r,t})\ \text{(MW)}. \label{eq:m5}
+\end{align}
+
+净购电 $=G_t - S_t$ 与数据列 $NetGridImport$ 同义（F2 实测 $497.0=G$ 峰值、min $-220=-SellLimit$）。负荷 std（输入不动点）作参照报告。
+
+\section{求解方法}
+
+\begin{itemize}
+  \item 求解器：\texttt{scipy.optimize.linprog}（HiGHS，\texttt{method='highs'}），与 S1/S2 生态一致；纯连续 LP，无需 MILP/启发式。
+  \item 规模：每区域 $7$ 变量 $\times 2406$ 时点 $\approx 1.7$ 万连续变量、约 $1.4$ 万约束；六区域合计 $\approx 10$ 万变量。
+  \item 求解策略：逐区域独立求解（\eqref{eq:carbon} 为分区域约束，保持可分解）；$\varepsilon$ 三档 $\times 6$ 区域 $=18$ 次 LP，秒级。
+  \item 终态处理：$E_{2406}=E_{2405}$，仅施加式 \eqref{eq:c5} 下界，不引入 $2406$ 时点变量。
+\end{itemize}
+
+\section{简化假设与合理性论证}
+
+\begin{enumerate}
+  \item \textbf{受限消纳（B1 裁定）}：消纳能力（直供+充电）逐时锚定基准观测值 $R_t+C^r_t \le Used_t+Rch_t$。消纳受电网物理能力（线路/调峰）逐时限制，基准轨迹即观测到的能力上限；自由消纳假设导致 LP 退化（$G\approx0$、Pareto 单点，决策日志 2.1-R1），不符合现实。约束保留储能"直供$\leftrightarrow$充电"重排自由度；弃电 $=Avail-R-C^r\ge0$ 仍成立。
+  \item \textbf{卖电入成本目标}（D3）：D/E/F 卖电收入 $429$ M 元量级 $>$ 储能节支空间（F8），忽略将严重扭曲解；A/B/C 因 $\overline{S}_r=0$ 天然无卖电。
+  \item \textbf{区域独立}：说明 7 无跨区潮流，储能子问题解耦，逐区独立最优 $=$ 全局最优。
+  \item \textbf{同时充放自动排除}：$\eta_c\eta_d<1$ 下同刻充放为纯损耗，成本目标下非最优（F4 实证 0 h）。
+  \item \textbf{碳约束限主时域}：结清段购电碳排 $\approx 0$（见 \S4 口径说明），不设碳约束不影响最优性。
+  \item \textbf{2406 状态结算}：说明 6，$E_{2406}=E_{2405}$，无充放。
+  \item \textbf{负荷/新能源/电价/碳强度为给定参数}：问题三口径固定（说明 4），不优化任务调度。
+\end{enumerate}
+
+\section{直觉解释}
+
+储能像一个"水库"：电价低或新能源充裕的时段（水库涨水）把电存进去，电价高或新能源不足的时段放出来用；购电就是"从电网买水"，卖电就是"把多余的水卖回电网"。碳排约束像一个"每周排放配额"——我们设了三档配额（基准的 100\%、95\%、90\%），看配额收紧时运行成本怎么上升，从而量化"减碳的经济代价"。峰值净购电是"水库调蓄后电网最紧张那一刻的取水流量"，负荷波动是"取水流量忽大忽小的程度"——储能正是通过削峰填谷同时压低这两项。
+
+\section{假设检验计划}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+核心假设 & 检验方法 & 检验结果（阶段 2.2 回填） \\
+\midrule
+H1 受限消纳锚定基准合理 & C2 绑定小时数占比诊断（$>95\%$ 全绑定则明示主导约束；低绑定则自由度充足） & \\
+H2 卖电套利成立 & B3：删 GridSell 收入对比 RegionE 成本 & \\
+H3 同刻充放自动排除 & 最优解后验：同刻充放小时数 $=0$ & \\
+H4 $\varepsilon$ 档有效 & Pareto 前沿梯度：三档成本单调性 & \\
+H5 终态约束可行 & LP status$=0$（可行+最优）；SOC(2406)$\ge$Initial & \\
+H6 结清段碳排 $\approx 0$ & 最优解后统计 $\sum_{t\in\mathcal{T}^{set}} G_t c_t$ & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}

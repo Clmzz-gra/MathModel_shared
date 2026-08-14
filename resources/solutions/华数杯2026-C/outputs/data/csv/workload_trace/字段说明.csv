@@ -1,0 +1,12 @@
+﻿字段名,中文名称,单位,属性,含义与使用说明
+TaskID,任务编号,无,输入索引,AI任务唯一编号。
+TaskType,任务类型,无,输入参数,AITraining、BatchInference、RealTimeInference。
+ArrivalHour,到达小时,h,输入参数,任务到达时段，范围0–2399。
+EarliestStartHour,最早开工小时,h,输入约束,等于 ArrivalHour；任务不得在到达前执行。
+GPU_Demand,GPU需求量,等效GPU单元,输入参数,任务运行时持续占用的等效GPU数量。
+EstimatedDuration_min,连续执行时长,min,输入参数,非抢占任务的连续执行时长。
+ExecutionMode,执行模式,无,输入约束,固定为 NonPreemptive；任务不可暂停、拆分或中途迁移。
+SourceRegion,来源区域,无,输入参数,用于查找跨区域单向网络时延。
+MaxLatency_ms,最大网络时延,ms,输入约束,任务分配区域的单向网络时延上限。
+LatestFinishHour,最晚完成小时,h,输入约束,实时任务按连续执行时长确定；批量推理和AI训练任务统一为2406，可使用收尾时域完成。
+DelaySensitivity,延时敏感性,无,输入参数,不同任务的延迟敏感度
