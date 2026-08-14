@@ -1,0 +1,61 @@
+% ============================================================
+% 论文写作素材节（内部报告必填，供队友在阶段 4 写作取材）
+% 用法：在内部报告 \begin{document} 末尾 \input{../../latex/templates/components/writing-material.tex}
+% 注意：本节不进入终稿正文，仅作为写作交接材料；字段填写不全视为报告未定稿。
+% ============================================================
+\section{论文写作素材（供队友写作）}
+
+\subsection{章节映射}
+
+本报告对应终稿第 \textbf{第 N 章}「\textbf{章节标题}」。建议终稿结构如下：
+\begin{itemize}
+  \item §X.1 建模与求解 \quad $\leftarrow$ 本报告 §2 模型 + §3 数据要点
+  \item §X.2 结果分析 \quad $\leftarrow$ 本报告 §4 结果 + §5 基线对比
+\end{itemize}
+
+\subsection{故事线（按段给出主题句与写作要点）}
+
+\begin{enumerate}
+  \item 【章首段】本问任务转述 + 输入规模 + 关键约束。要点：\todo{一句话转述赛题要求，给出任务数/区域数/时域等关键数字}。表述库参考：\todo{如 5.1-48（业务情境）+ 5.1-49（编号列表）}。内嵌摘录：\todo{若 parts 文件有更贴合的原文摘录，整段摘录于此并附出处，如 2021C1-摘要}
+  \item 【建模段】为什么用该方法 + 模型结构（决策变量/目标/约束）。要点：\todo{说明方法选择理由与模型骨架，引用报告 §2 公式编号}。表述库参考：\todo{如 1.1-1（资源优化式）+ 2.2-20（双目标式）}。内嵌摘录：\todo{同上，附出处}
+  \item 【结果段】核心数字 + 对比结论。要点：\todo{引用下方关键数字表，写明与基线/上一问的对比方向}。表述库参考：\todo{如 3.2-33（新旧方案增益对比）}。内嵌摘录：\todo{同上，附出处}
+\end{enumerate}
+
+\textbf{表述库内嵌规则}：队友无法直接访问 parts 文件（暂不共享），生成者必须把本问用到的 parts 原文摘录直接粘进「内嵌摘录」字段并注明出处（论文ID-章节），确保队友不依赖 parts 文件即可写作。
+
+\subsection{关键数字表}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{llll}
+\toprule
+数字 & 含义 & 来源（脚本/文件） & 论文引用位置 \\
+\midrule
+\todo{2166.64M} & \todo{S4 主解运行成本} & \todo{sub4-model.py / iter-04 §4} & \todo{§7 结果段} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{图表清单}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+图/表 & 论文用途 & 建议插入位置 \\
+\midrule
+\todo{sub4-region-cost-carbon.pdf} & \todo{六区成本碳排分布} & \todo{§7 结果段} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{口径与局限（可写句 / 禁写句）}
+
+\begin{itemize}
+  \item 可写：\todo{该子问题可以安全写进论文的结论句，如"成本降低 2.1\%，包含任务迁移全部收益"} 
+  \item 禁止写：\todo{该子问题不得写进论文的过度承诺句，如"该收益为耦合增益"（口径声明见报告正文，不得删改）}
+\end{itemize}
+
+\subsection{AI 工具使用标注}
+
+本子问题涉及 AI 使用记录：\todo{[AI-4-1] 等编号}，供阶段 3.3 AI 使用声明引用。
