@@ -1,14 +1,24 @@
-% 符号表段落模板（中文）
+% 符号表段落模板（中文，自足性规则用——报告文首必含符号表）
+% 用法：\input 在报告 \section{模型建立} 前；三列：符号/定义/首次出现处（节号或公式号）
+% 自足性要求（TRAE-报告.md）：正文每个符号首次出现处一句话内嵌定义，此处汇总便于速查。
 
 \begin{table}[ht]
 \centering
-\caption{模型符号说明}
-\begin{tabular}{c l}
+\caption{模型符号说明（本文自足性符号表；正文首次出现处均有内嵌定义）}
+\begin{tabular}{c l l}
 \toprule
-\textbf{符号} & \textbf{定义} \\
+\textbf{符号} & \textbf{定义} & \textbf{首次出现} \\
 \midrule
-$x$ & 变量描述 \\
-$y$ & 变量描述 \\
+$\mathcal{R}$ & 六区域集合（RegionA--F） & §2.1 \\
+$\mathcal{T}$ & 全时域 $\{0,\ldots,2405\}$（含结清段） & §2.1 \\
+$A_j, D_j, g_j, L_j$ & 任务 $j$ 的到达小时/时长/GPU 需求/最晚完成 & §2.1 \\
+% ……（每个符号一行；跨问代号如 S2 F4 也在此登记：代号|指代|首次出现）
+\toprule
+\textbf{跨问/实验代号} & \textbf{指代} & \textbf{首次出现} \\
+\midrule
+S2 F4 & S2 阶段 F4：全耦合变量核算 & §1.3 \\
+Q3 对照 & 问题四 Q3：基荷策略合理性检验对照 & §3.2 \\
+% ……（所有跨问引用/裁定代号逐一登记）
 \bottomrule
 \end{tabular}
 \end{table}

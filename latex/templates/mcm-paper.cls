@@ -38,7 +38,16 @@
 
 % --- 页眉页脚 ---
 \RequirePackage{fancyhdr}
-\pagestyle{fancy}
+\pagestyle{empty}                          % 默认样式：摘要页（第一页）无页码
 \fancyhf{}                                % 清空页眉页脚
 \fancyfoot[C]{\thepage}                   % 页号下方居中
 \renewcommand{\headrulewidth}{0pt}        % 去掉页眉横线
+
+% --- 摘要页与正文页码（华数杯/MCM 格式：摘要页无页码，摘要后的第一页为页码 1）---
+% 用法：\begin{document} → \summarystart → 摘要内容 → \maincontentstart → 正文
+\newcommand{\summarystart}{}              % 摘要页入口（默认已 \pagestyle{empty}，无页码）
+\newcommand{\maincontentstart}{%
+  \clearpage
+  \setcounter{page}{1}%                    % 正文第一页页码重置为 1
+  \pagestyle{fancy}%
+}

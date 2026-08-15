@@ -1,9 +1,17 @@
 % ============================================================
-% 论文写作素材节（内部报告必填，供队友在阶段 4 写作取材）
-% 用法：在内部报告 \begin{document} 末尾 \input{../../latex/templates/components/writing-material.tex}
-% 注意：本节不进入终稿正文，仅作为写作交接材料；字段填写不全视为报告未定稿。
+% 论文写作素材（独立文件模板，供队友在阶段 4 写作取材）
+% 用法：按本模板生成独立文件 solution/internal-reports/writing-material-<subN>.tex
+%       （不 \input 进内部报告正文——正文与素材目的分离，见 TRAE-报告.md L1）
+% 注意：本文件不进入终稿正文，仅作为写作交接材料；字段填写不全视为报告未定稿。
+%       溯源/字段路径/可写禁写句一律放本文件，正文不承载。
 % ============================================================
-\section{论文写作素材（供队友写作）}
+\documentclass{article}   % 独立编译用；若并入报告正文编译则删除本行与 \begin{document} 等
+\usepackage[UTF8]{ctex}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\begin{document}
+\section{论文写作素材（供队友写作）—— 本文件为独立素材，对应内部报告 iter-<序号>-sub<N>-<名>.tex}
 
 \subsection{章节映射}
 
@@ -59,3 +67,5 @@
 \subsection{AI 工具使用标注}
 
 本子问题涉及 AI 使用记录：\todo{[AI-4-1] 等编号}，供阶段 3.3 AI 使用声明引用。
+
+\end{document}
