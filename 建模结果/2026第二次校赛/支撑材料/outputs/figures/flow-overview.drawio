@@ -1,0 +1,148 @@
+﻿<mxfile host="app.diagrams.net" modified="2026-08-22" agent="DSH" version="24.0.0" type="device">
+  <diagram id="flow-overview-2026-sim2-B" name="整体技术路线图">
+    <mxGraphModel dx="600" dy="800" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="770" pageHeight="780" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        
+        <mxCell id="p" value="统一数据预处理（共用前置管线）&#10;近全零过滤 → CLR 变换 → 标准化（仅训练集估计）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E4057;strokeWidth=1.5;fontSize=12;fontColor=#2E4057;fontFamily=SimHei;verticalAlign=middle;align=center;" vertex="1" parent="1">
+          <mxGeometry x="100" y="20" width="570" height="54" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="s1h" value="问题一 · 疾病预测" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2E4057;strokeColor=#2E4057;fontColor=#FFFFFF;fontSize=14;fontStyle=1;fontFamily=SimHei;verticalAlign=middle;align=center;" vertex="1" parent="1">
+          <mxGeometry x="27" y="110" width="216" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="s1-1" value="&lt;b&gt;① 构建分类模型&lt;/b&gt;&#10;CLR 变换 + L2 逻辑回归（主）&#10;随机森林（对照）" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#3A4450;fontFamily=SimHei;fillColor=#FFFFFF;strokeColor=#C2CDD6;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="27" y="166" width="216" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s1-2" value="&lt;b&gt;② 诚实评估&lt;/b&gt;&#10;分层 5 折交叉验证 + LOOCV&#10;AUC 主指标 + 少数类指标" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#3A4450;fontFamily=SimHei;fillColor=#FFFFFF;strokeColor=#C2CDD6;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="27" y="262" width="216" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s1-3" value="&lt;b&gt;③ 稳健性检验&lt;/b&gt;&#10;小腺瘤（small adenoma）归类方案敏感性&#10;过拟合判定（CV vs LOOCV）" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#3A4450;fontFamily=SimHei;fillColor=#FFFFFF;strokeColor=#C2CDD6;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="27" y="358" width="216" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s1-4" value="&lt;b&gt;④ 阈值与可解释&lt;/b&gt;&#10;Youden 阈值选择&#10;L2 系数 → 微生物方向信号" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#3A4450;fontFamily=SimHei;fillColor=#FFFFFF;strokeColor=#C2CDD6;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="27" y="454" width="216" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s1-5" value="&lt;b&gt;⑤ 结论&lt;/b&gt;&#10;三数据集均达可预测水平&#10;性能差异归因于信号强度/类别平衡" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#FFFFFF;fontFamily=SimHei;fillColor=#2E4057;strokeColor=#2E4057;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="27" y="550" width="216" height="80" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="s2h" value="问题二 · 生物标志物" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2E4057;strokeColor=#2E4057;fontColor=#FFFFFF;fontSize=14;fontStyle=1;fontFamily=SimHei;verticalAlign=middle;align=center;" vertex="1" parent="1">
+          <mxGeometry x="277" y="110" width="216" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="s2-1" value="&lt;b&gt;① 稀疏筛选&lt;/b&gt;&#10;Lasso 回归初步筛选候选特征" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#3A4450;fontFamily=SimHei;fillColor=#FFFFFF;strokeColor=#C2CDD6;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="277" y="166" width="216" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s2-2" value="&lt;b&gt;② 稳定性选择&lt;/b&gt;&#10;Bootstrap 重抽样 + 入选频率阈值" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#3A4450;fontFamily=SimHei;fillColor=#FFFFFF;strokeColor=#C2CDD6;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="277" y="262" width="216" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s2-3" value="&lt;b&gt;③ 两路信号验证&lt;/b&gt;&#10;Fisher（存在/缺失）+ Wilcoxon（丰度）" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#3A4450;fontFamily=SimHei;fillColor=#FFFFFF;strokeColor=#C2CDD6;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="277" y="358" width="216" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s2-4" value="&lt;b&gt;④ 多重校正与佐证&lt;/b&gt;&#10;BH-FDR 校正 + RF 重要性/VIP 交叉佐证" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#3A4450;fontFamily=SimHei;fillColor=#FFFFFF;strokeColor=#C2CDD6;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="277" y="454" width="216" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s2-5" value="&lt;b&gt;⑤ 结论：稳定标志物确定&lt;/b&gt;&#10;与文献已知标志物比对验证&#10;跨疾病重叠（Jaccard）检查" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#FFFFFF;fontFamily=SimHei;fillColor=#2E4057;strokeColor=#2E4057;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="277" y="550" width="216" height="80" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="s3h" value="问题三 · 跨疾病预测" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2E4057;strokeColor=#2E4057;fontColor=#FFFFFF;fontSize=14;fontStyle=1;fontFamily=SimHei;verticalAlign=middle;align=center;" vertex="1" parent="1">
+          <mxGeometry x="527" y="110" width="216" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-1" value="&lt;b&gt;① 评估框架&lt;/b&gt;&#10;LODO 留一疾病（测试疾病不可见）" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#3A4450;fontFamily=SimHei;fillColor=#FFFFFF;strokeColor=#C2CDD6;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="527" y="166" width="216" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-2" value="&lt;b&gt;② 策略对比&lt;/b&gt;&#10;直接迁移 / 共享标志物 / 聚合 / 输出概率修正" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#3A4450;fontFamily=SimHei;fillColor=#FFFFFF;strokeColor=#C2CDD6;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="527" y="262" width="216" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-3" value="&lt;b&gt;③ 后续模型探索&lt;/b&gt;&#10;树模型 → 样本合并 → 密度加权 → 对抗域适应" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#3A4450;fontFamily=SimHei;fillColor=#FFFFFF;strokeColor=#C2CDD6;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="527" y="358" width="216" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-4" value="&lt;b&gt;④ 归因分析&lt;/b&gt;&#10;衰减三分法 + 共享方向 + 阈值漂移" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#3A4450;fontFamily=SimHei;fillColor=#FFFFFF;strokeColor=#C2CDD6;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="527" y="454" width="216" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-5" value="&lt;b&gt;⑤ 结论：统一模型不可交付&lt;/b&gt;&#10;完整验证过程（六轮实验）&#10;表明瓶颈在数据" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10.5;fontColor=#FFFFFF;fontFamily=SimHei;fillColor=#2E4057;strokeColor=#2E4057;strokeWidth=1.5;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="527" y="550" width="216" height="80" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="c1b" value="" style="rounded=1;fillColor=#2E4057;strokeColor=#2E4057;" vertex="1" parent="1">
+          <mxGeometry x="99" y="676" width="10" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="c1" value="&lt;b&gt;总结论&lt;/b&gt;：域内疾病可预测、标志物获文献验证；&#10;跨疾病统一模型不可交付——完整验证过程表明瓶颈为数据固有限制" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E4057;strokeWidth=2;fontSize=11;fontColor=#3A4450;fontFamily=SimHei;verticalAlign=middle;align=center;" vertex="1" parent="1">
+          <mxGeometry x="109" y="675" width="552" height="54" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="e2" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.061;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p" target="s1h">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p" target="s2h">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.939;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p" target="s3h">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s1h" target="s1-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s1-1" target="s1-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s1-2" target="s1-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s1-3" target="s1-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s1-4" target="s1-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s2h" target="s2-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s2-1" target="s2-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s2-2" target="s2-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s2-3" target="s2-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s2-4" target="s2-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s3h" target="s3-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s3-1" target="s3-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s3-2" target="s3-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s3-3" target="s3-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e19" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s3-4" target="s3-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.047;entryY=0;" edge="1" parent="1" source="s1-5" target="c1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e21" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s2-5" target="c1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e22" style="rounded=0;html=1;strokeColor=#4A5568;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.953;entryY=0;" edge="1" parent="1" source="s3-5" target="c1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

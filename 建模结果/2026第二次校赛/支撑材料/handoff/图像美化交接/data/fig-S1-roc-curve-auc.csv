@@ -1,0 +1,7 @@
+﻿dataset,model,auc,auc_std
+Zeller,L2,0.790656,0.102188
+Zeller,RF,0.845450,0.067829
+metahit,L2,0.887059,0.070823
+metahit,RF,0.903529,0.048450
+Chatelier,L2,0.649589,0.071788
+Chatelier,RF,0.660203,0.048170

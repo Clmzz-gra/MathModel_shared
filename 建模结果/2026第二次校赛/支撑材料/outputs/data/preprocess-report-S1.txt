@@ -1,0 +1,34 @@
+======================================================================
+S1 数据预处理报告（阶段 1.4）
+======================================================================
+
+[1] 输入数据
+    c-data-cleaned.pkl: (484, 1333)（2 元数据 + 1331 float32 特征）
+
+[2] 近全零过滤（零值占比 >95% 剔除，三病并集统一口径）
+    过滤前特征数: 1331
+    过滤后特征数: 264
+    剔除特征数: 1067
+
+[3] 三数据集标签分布（患病=1 / 健康=0，口径①默认主口径）
+    Zeller_fecal_colorectal_cancer: n=121，患病=48，健康=73，少数类=1
+    metahit: n=110，患病=25，健康=85，少数类=1
+    Chatelier_gut_obesity: n=253，患病=164，健康=89，少数类=0
+
+[4] small_adenoma 四口径样本数（仅 Zeller）
+    CRC_adenoma_as_healthy: n=121，患病=48，健康=73 — 口径① 归健康（默认主口径）：n+small_adenoma=0，cancer=1
+    CRC_adenoma_as_diseased: n=121，患病=74，健康=47 — 口径② 归病变：cancer+small_adenoma=1，n=0
+    CRC_adenoma_excluded: n=95，患病=48，健康=47 — 口径③ 剔除：剔除 26 例 small_adenoma，cancer=1/n=0
+    CRC_adenoma_separate: n=95，患病=48，健康=47 — 口径④ 单开一类：small_adenoma 不参与二分类，26 例单独第三类
+
+[5] CLR 变换
+    δ = 6.5000000000000004e-06（乘法替换，AL-007）
+    clr(x_ij) = ln(max(x_ij,δ)) - mean_k(ln(max(x_ik,δ)))（逐行几何均值中心化）
+
+[6] 分层 CV 折划分
+    StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    Zeller_fecal_colorectal_cancer: 5 折 test 大小 = [25, 24, 24, 24, 24]
+    metahit: 5 折 test 大小 = [22, 22, 22, 22, 22]
+    Chatelier_gut_obesity: 5 折 test 大小 = [51, 51, 51, 50, 50]
+
+======================================================================

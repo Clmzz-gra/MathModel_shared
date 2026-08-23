@@ -1,0 +1,117 @@
+% ============================================================
+% 论文写作素材（独立文件，供队友阶段 4 写作取材）
+% 对应内部报告 iter-02-sub1-disease-prediction.tex
+% VERSION: 2026-08-21-2.4修订（P1-P5 整改：正文去 pkl 字段路径、补登特征系数/置信区间、补图表清单、CLR 增益与 overfit 口径裁定）
+% 溯源/字段路径/可写禁写句一律放本文件，正文不承载。
+% 数字一律取自 outputs/data/S1-results.pkl（只读提取），不抄 handoff。
+% ============================================================
+\documentclass{article}
+\usepackage[UTF8]{ctex}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\begin{document}
+\section{论文写作素材（供队友写作）—— 对应内部报告 iter-02-sub1-disease-prediction.tex}
+
+\subsection{章节映射}
+
+本报告对应终稿第 \textbf{第 N 章}「\textbf{疾病预测模型}」。建议终稿结构如下：
+\begin{itemize}
+  \item §X.1 建模与求解 \quad $\leftarrow$ 本报告 §2 数据 + §3 模型
+  \item §X.2 结果分析 \quad $\leftarrow$ 本报告 §4 结果 + §5 归因分析
+\end{itemize}
+
+\subsection{故事线（按段给出主题句与写作要点）}
+
+\begin{enumerate}
+  \item 【章首段】本问任务转述 + 输入规模 + 关键约束。要点：三数据集（Zeller 结直肠癌 $n=121$、metahit 炎症性肠病 $n=110$、Chatelier 肥胖症 $n=253$）以物种级相对丰度为特征，构造患病/健康二分类判别模型。表述库参考：5.1-48（业务情境）+ 5.1-49（编号列表）。
+  \item 【建模段】为什么用该方法 + 模型结构。要点：主模型 Logistic(L2)+CLR（成分数据定和偏相关需 CLR 解除，L2 抗 $n\ll p$ 过拟合），对照随机森林（原始丰度），基线单特征最佳阈值+Dummy；统一分层 5 折 CV（$K=5$, seed=42）+ LOOCV 兜底。表述库参考：9.1-68（预测模型选型论证）+ 9.1-69（预测建模流程）。
+  \item 【结果段】核心数字 + 对比结论。要点：主口径下 L2(CLR) AUC 为 Zeller 0.791、metahit 0.887、Chatelier 0.650；RF 在 Zeller/metahit 更优（0.845/0.904）、Chatelier 略优（0.660）；集成不优于单最佳，单最佳（RF）交付；Chatelier 弱信号接近领域下界。表述库参考：3.1-30（数值先导+表格引出）+ 3.2-34（指标比较论证）。
+\end{enumerate}
+
+\subsection{关键数字表}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{llll}
+\toprule
+数字 & 含义 & 来源（pkl 字段路径） & 论文引用位置 \\
+\midrule
+121 / 110 / 253 & 三数据集样本数 & S1-preprocessed.pkl datasets.<ds>.n\_samples & §2.1 \\
+73/48、85/25、89/164 & 各数据集健康/患病样本数 & S1-results.pkl <ds>.L2\_CLR.confusion\_matrix（OOF 聚合） & §2.1 \\
+39.7\%/22.7\%/35.2\% & 各数据集少数类比例 & 由 confusion\_matrix 与 n\_samples 计算 & §2.1 \\
+1331$\to$264 & 近全零过滤前后特征数 & S1-preprocessed.pkl filter.n\_features\_before/after & §2.3 \\
+$6.5\times10^{-6}$ & CLR 零值替换伪值 $\delta$ & S1-preprocessed.pkl clr.delta & §2.4 \\
+0.791/0.887/0.650 & 三数据集 L2(CLR) AUC & S1-results.pkl <ds>.L2\_CLR.AUC & §4.1 \\
+0.845/0.904/0.660 & 三数据集 RF AUC & S1-results.pkl <ds>.RF\_raw.AUC & §4.1 \\
+0.727/0.864/0.648 & 三数据集 L2 ACC & S1-results.pkl <ds>.L2\_CLR.ACC & §4.1 \\
+0.640/0.672/0.518 & 三数据集 L2 少数类 F1 & S1-results.pkl <ds>.L2\_CLR.F1\_minority & §4.1 \\
+0.600/0.640/0.528 & 三数据集 L2 少数类 Recall & S1-results.pkl <ds>.L2\_CLR.Recall\_minority & §4.1 \\
+0.678/0.352/0.094 & 三数据集 RF 少数类 F1 & S1-results.pkl <ds>.RF\_raw.F1\_minority & §4.1 \\
+0.580/0.240/0.056 & 三数据集 RF 少数类 Recall & S1-results.pkl <ds>.RF\_raw.Recall\_minority & §4.1 \\
+0.758/0.815/0.639 & 三数据集单特征基线 AUC & S1-results.pkl <ds>.baseline.single\_feature\_best\_AUC & §4.1 \\
+0.603/0.773/0.648 & 三数据集 Dummy 多数类 ACC & S1-results.pkl <ds>.baseline.dummy\_ACC & §4.1 \\
+0.791/0.611/0.802/0.802 & adenoma 四口径 L2 AUC & S1-results.pkl adenoma\_sensitivity.*.L2\_AUC & §4.2 \\
+0.845/0.651/0.867/0.867 & adenoma 四口径 RF AUC & S1-results.pkl adenoma\_sensitivity.*.RF\_AUC & §4.2 \\
+121/121/95/95 & adenoma 四口径样本数 & S1-results.pkl adenoma\_sensitivity.*.n\_samples & §4.2 \\
+healthy & 默认主口径 & S1-results.pkl adenoma\_sensitivity.selected\_main\_caliber & §4.2 \\
+0.804/0.875/0.627 & 三数据集 LOOCV AUC & S1-results.pkl <ds>.LOOCV.AUC & §4.3 \\
+0.838/0.896 & Zeller/metahit 集成 AUC & S1-results.pkl <ds>.soft\_voting.AUC & §4.4 \\
+$-0.008$ & 集成 vs 单最佳 $\Delta$AUC & S1-results.pkl <ds>.soft\_voting.vs\_best\_single\_delta\_AUC & §4.4 \\
+$+0.033/+0.072/+0.010$ & 三数据集 L2 相对基线增益 & 由 L2\_CLR.AUC $-$ baseline.single\_feature\_best\_AUC 计算 & §5.4 \\
+$+0.087/+0.088/+0.021$ & 三数据集 RF 相对基线增益 & 由 RF\_raw.AUC $-$ baseline.single\_feature\_best\_AUC 计算 & §5.4 \\
+$+0.285/+0.245/-0.188$ & Zeller L2 系数 Top3（Peptostreptococcus\_stomatis / Fusobacterium\_nucleatum / Lachnospiraceae\_bacterium\_1\_4\_56FAA） & S1-results.pkl Zeller\_fecal\_colorectal\_cancer.L2\_CLR.coefficients + S1-preprocessed.pkl feature\_names & §4.5 \\
+$-0.196/-0.187/-0.175$ & metahit L2 系数 Top3（Parabacteroides\_unclassified / Alistipes\_finegoldii / Coprococcus\_sp\_ART55\_1） & S1-results.pkl metahit.L2\_CLR.coefficients + S1-preprocessed.pkl feature\_names & §4.5 \\
+$-0.542/-0.444/+0.439$ & Chatelier L2 系数 Top3（Pseudoflavonifractor\_capillosus / Coriobacteriaceae\_bacterium\_phI / Porphyromonas\_asaccharolytica） & S1-results.pkl Chatelier\_gut\_obesity.L2\_CLR.coefficients + S1-preprocessed.pkl feature\_names & §4.5 \\
+$\pm0.090/\pm0.062/\pm0.063$ & 三数据集 L2 AUC 95\% 置信区间半宽（Zeller/metahit/Chatelier） & 由 S1-results.pkl <ds>.L2\_CLR.AUC\_std 计算（$1.96\times\mathrm{std}/\sqrt{5}$） & §5.2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{图表清单}
+
+\begin{center}
+\scriptsize
+\begin{tabular}{p{4.2cm} p{4.6cm} p{4.6cm} p{2.2cm}}
+\toprule
+图/表 & 论文用途 & 数据源（pkl 字段） & 建议插入位置 \\
+\midrule
+S1-roc-curve-explore.pdf & 三数据集 ROC 曲线（L2+RF，OOF 概率）+ AUC & <ds>.L2\_CLR.oof\_prob / <ds>.RF\_raw.oof\_prob + 标签 & §4.1 结果段 \\
+S1-perf-bar-explore.pdf & 三数据集性能对比柱状图（L2/RF AUC） & <ds>.L2\_CLR.AUC / <ds>.RF\_raw.AUC & §4.1 结果段 \\
+S1-adenoma-sensitivity-explore.pdf & small\_adenoma 四口径敏感性（L2/RF AUC） & adenoma\_sensitivity.*.L2\_AUC / RF\_AUC & §4.2 结果段 \\
+S1-confusion-matrix-explore.pdf & 三数据集 L2(CLR) 混淆矩阵热力图 & <ds>.L2\_CLR.confusion\_matrix & §4.1 结果段 \\
+S1-feature-importance-explore.pdf & L2 系数 Top10 + RF permutation importance Top10 & <ds>.L2\_CLR.coefficients / <ds>.RF\_raw.feature\_importances & §4.5 特征重要性 \\
+S1-threshold-analysis-explore.pdf & 阈值-指标曲线（L2 概率分类器） & <ds>.L2\_CLR.oof\_prob & §4.1 结果段 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{图表占位符规格}：以上 6 张探索图位于 \texttt{outputs/figures/\_explore/}（不进论文），正式图由队友在报告定稿后按 \texttt{chart-generator} skill 出图，数据源为 \texttt{S1-results.pkl}（逐图字段见上表），替换本报告 §4 的图表占位符。
+
+\subsection{口径与局限（可写句 / 禁写句）}
+
+\begin{itemize}
+  \item 可写：主口径（small\_adenoma 归健康）下，L2(CLR) AUC 为 Zeller 0.791、metahit 0.887、Chatelier 0.650；RF 在 Zeller 与 metahit 上更优（0.845、0.904），Chatelier 上略优（0.660）。
+  \item 可写：Soft Voting 集成不优于单最佳（$\Delta$AUC $=-0.008$），单最佳（RF）即交付。
+  \item 可写：Chatelier 弱信号接近领域下界（L2 相对基线增益仅 $+0.010$），多特征增益极小。
+  \item 禁止写：不得把三数据集绝对 AUC 直接横向比较（批次效应强，只比相对基线增益）。
+  \item 禁止写：不得把全量 AUC=1.000 表述为模型过拟合缺陷（$n\ll p$ 下样本内拟合的必然现象，5 折 CV 与 LOOCV 差距 $<0.025$ 表明模型稳定）。
+  \item 禁止写：不得把 RF 少数类 F1/Recall 极低（metahit 0.352/0.240、Chatelier 0.094/0.056）表述为 RF 模型失效——RF 未加 class\_weight 且默认阈值 0.5 对不平衡数据次优，AUC 为阈值无关的诚实指标。
+  \item 禁止写：不得写 CLR 相对原始丰度的定量增益（pkl 未落盘该字段，见待裁定项 1）。
+\end{itemize}
+
+\subsection{AI 工具使用标注}
+
+本子问题涉及 AI 使用记录：\todo{[AI-4-1] 等编号待阶段 3.3 补充}，供阶段 3.3 AI 使用声明引用。
+
+\subsection{待裁定项（反向交接，需建模/人类裁决）}
+
+\begin{enumerate}
+  \item \textbf{CLR 增益实证值缺失}（A 级，2.4 已裁定）：pkl 无 CLR 相对原始丰度的定量增益字段，无法只读提取。裁定：标注「无实证值，正文不写具体增益」——报告 §2.4 已按此书写，未写具体增益数字；素材「禁止写」句同步保留（不得写 CLR 定量增益）。
+  \item \textbf{过拟合判定规则失效}（A 级，2.4 已裁定）：三数据集 \texttt{overfit\_flag} 均判 True（全量 AUC=1.0 与 LOOCV 差距 0.196/0.125/0.373 均 $>0.1$），但这是 $n\ll p$ 下样本内 AUC 恒为 1.0 的必然现象。裁定：采用「CV vs LOOCV」口径——报告 §3.4 已按此书写（5 折 CV 与 LOOCV 差距 0.014/0.012/0.023，均 $<0.025$，模型稳定），并显式说明 full\_AUC=1.0 背景，不作过拟合判据。
+  \item \textbf{Chatelier RF 少数类 F1/Recall 极低}：RF 无 class\_weight，默认阈值 0.5 对不平衡数据（少数类=健康 35.2\%）次优，几乎全预测多数类。报告以 AUC 为诚实指标并说明原因，需建模裁决是否补充 class\_weight 或调阈值。（B 级）
+  \item \textbf{small\_adenoma 主口径选择}：默认(1)（归健康）已落盘；(3)/(4)（剔除）略优但 $\Delta$AUC$<0.05$。报告已按默认(1)书写，最终主口径待建模/人类择优。（B 级）
+  \item \textbf{RF permutation importance 退化}：三数据集 RF permutation importance 均接近 0（量级 $10^{-17}$），无法提供有效特征排序。报告以 L2 系数为特征方向，RF 重要性退化原因待建模解释。（B 级）
+\end{enumerate}
+
+\end{document}

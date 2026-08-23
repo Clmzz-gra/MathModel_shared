@@ -1,0 +1,322 @@
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{array}
+
+% STATUS: draft
+% LAST_MODIFIED: 2026-08-21
+
+\title{S1 数学推导：疾病预测模型（CLR + Logistic(L2) + class\_weight）}
+\author{MathModel 建模小组}
+\date{2026-08-21}
+
+\begin{document}
+
+\maketitle
+
+\section{问题形式化}
+
+S1 子问题为三个宏基因组数据集（Zeller CRC / metahit IBD / Chatelier Obesity）各自建立「患病 vs 健康」二分类判别模型，并诚实评估其性能、归因三数据集之间的性能差异。本文件给出主模型（Logistic(L2) + CLR 前置 + class\_weight）的完整数学推导，含数据预处理（近全零过滤 + CLR 变换）、模型与损失、评估协议、参数表、简化假设、数学自检与假设检验计划。对照模型（Random Forest）与基线（单特征阈值 + Dummy）仅列规格，不展开推导。
+
+\subsection{符号表（先定义再使用）}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+符号 & 读法 & 定义 \\
+\midrule
+$n$ & 「样本数」 & 某数据集的样本总数（Zeller=121 / metahit=110 / Chatelier=253） \\
+$p$ & 「特征数」 & 物种级特征列数，原始 $p_0=1331$，过滤后 $p=264$ \\
+$x_{ij}$ & 「第 $i$ 个样本第 $j$ 个物种的相对丰度」 & 原始丰度矩阵 $\mathbf{X}\in\mathbb{R}^{n\times p}$ 的元素，$i=1,\dots,n$，$j=1,\dots,p$ \\
+$\delta$ & 「德尔塔，零值替换值」 & 零值乘法替换的伪值 $=6.5\times10^{-6}$（见 \S\ref{sec:clr}） \\
+$g_i$ & 「第 $i$ 个样本的几何均值」 & $g_i=\big(\prod_{j=1}^{p}x_{ij}\big)^{1/p}$，读作「所有物种丰度连乘后开 $p$ 次方」 \\
+$\mathrm{clr}(x_{ij})$ & 「CLR 变换后的值」 & 中心化对数比（Centered Log-Ratio），见 \S\ref{sec:clr} \\
+$\mathbf{w}$ & 「权重向量」 & Logistic 系数向量，长度 $p$，$w_j$ 是第 $j$ 个物种的效应 \\
+$b$ & 「偏置项」 & Logistic 截距 \\
+$z_i$ & 「线性得分」 & $z_i=\mathbf{w}^{\top}\mathrm{clr}(\mathbf{x}_i)+b$，读作「权重与 CLR 特征的内积加偏置」 \\
+$\sigma(z)$ & 「sigmoid 函数」 & $\sigma(z)=\frac{1}{1+e^{-z}}$，把任意实数压到 $(0,1)$ 当概率 \\
+$y_i$ & 「第 $i$ 个样本的真实标签」 & 患病 $=1$ / 健康 $=0$ \\
+$\lambda$ & 「拉姆达，正则强度」 & L2 惩罚系数，越大收缩越强 \\
+$C$ & 「C，正则强度的倒数」 & sklearn 参数，$C=1/\lambda$，$C$ 越大正则越弱 \\
+$w_c$ & 「第 $c$ 类的样本权重」 & class\_weight 中类别 $c$ 的权重，见 \S\ref{sec:classweight} \\
+$K$ & 「K，交叉验证折数」 & 分层 CV 的折数 $=5$ \\
+$z_j$ & 「第 $j$ 个特征的零值占比」 & $z_j=\frac{1}{n}\sum_{i=1}^{n}\mathbf{1}[x_{ij}=0]$，见 \S\ref{sec:filter} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{数据预处理数学}
+\label{sec:preprocess}
+
+\subsection{近全零过滤（零值占比阈值）}
+\label{sec:filter}
+
+\textbf{定义（零值占比）}：对第 $j$ 个物种特征，其零值占比 $z_j$ 定义为该列中取值为 0 的样本比例：
+
+\begin{equation}
+  z_j = \frac{1}{n}\sum_{i=1}^{n}\mathbf{1}[x_{ij}=0],
+  \qquad
+  \mathbf{1}[\cdot]\ \text{读作「指示函数，条件成立取 1，否则取 0」}.
+  \label{eq:zerofrac}
+\end{equation}
+
+\textbf{过滤规则}：保留特征 $j$ 当且仅当 $z_j \le \tau$，其中阈值 $\tau = 0.95$（读作「零值占比不超过 95\%」）：
+
+\begin{equation}
+  \mathcal{J}_{\text{keep}} = \big\{ j \in \{1,\dots,p_0\} : z_j \le 0.95 \big\},
+  \qquad
+  p = |\mathcal{J}_{\text{keep}}| = 264.
+  \label{eq:filter}
+\end{equation}
+
+- 因为：原始 1331 维中 92.21\% 的矩阵元素为 0，其中 1067 个特征（$z_j>0.95$）几乎不含判别信息——它们只在极少数样本中非零，无法稳定估计系数，且会放大 CLR 变换中 $\delta$ 替换的噪声。剔除后 $1331\to264$ 维，与 S2 子问题过滤口径统一（三病并集同一 264 特征集），V2 实证不损失判别信息。
+- **直觉类比**：像问卷里「几乎所有人都不填」的题目，留着只会让统计表变长、结论变糊，删掉反而更干净。
+
+\subsection{CLR 变换（成分数据 $\to$ 可比较的相对量）}
+\label{sec:clr}
+
+\textbf{动机（为什么需要 CLR）}：宏基因组相对丰度是\textbf{定和成分数据}——每行丰度之和 $\approx 100$（或归一化后 $=1$）。定和约束使丰度之间「此消彼长」：一个物种丰度上升，必然挤压其他物种的相对占比，从而在原始丰度上产生\textbf{伪相关}（即使两物种真实独立，其相对丰度也负相关）。线性模型（Logistic）对特征间的线性相关敏感，直接输入原始丰度会得到被定和约束扭曲的系数。CLR 变换把「加起来等于 100 的成分」翻译成「每个物种相对本样本平均水平的对数比」，解除定和偏相关（PR-006 铁律，A 类验证 F4 实证增益 $+0.10\sim+0.15$）。
+
+\textbf{第一步：零值乘法替换}（因为 92\% 零值无法取对数，需先给一个「低于检出限」的伪值）：
+
+\begin{equation}
+  x_{ij} \leftarrow \max(x_{ij},\ \delta),
+  \qquad
+  \delta = 0.65 \times 10^{-5} = 6.5\times10^{-6}.
+  \label{eq:zeroreplace}
+\end{equation}
+
+- 读法：每个丰度值若为 0，替换为 $\delta$；$\delta$ 等于检出限（$10^{-5}$）的 0.65 倍。
+- 因为：$\delta$ 取「检出限的 0.65 倍」是 AL-007 标准乘法替换，既保证可对数化，又远小于任何真实非零丰度（不污染信号）。乘法替换（而非加伪计数 $+1$）保持「零值远小于非零值」的序关系，且对 $\delta$ 的微小扰动不敏感（辩论 \S3.1 反驳）。
+
+\textbf{第二步：逐行几何均值中心化}：
+
+\begin{equation}
+  \mathrm{clr}(x_{ij}) = \ln x_{ij} - \frac{1}{p}\sum_{k=1}^{p}\ln x_{ik}
+  = \ln\frac{x_{ij}}{g_i},
+  \qquad
+  g_i = \Big(\prod_{k=1}^{p} x_{ik}\Big)^{1/p}.
+  \label{eq:clr}
+\end{equation}
+
+- 读法：先对每个丰度取自然对数，再减去该样本所有物种对数丰度的平均值（即减去几何均值 $g_i$ 的对数）。
+- 因为：定和约束 $\sum_j x_{ij} = \text{const}$ 在原始空间是一条「单纯形」（simplex，读作「单纯形，和为常数的点集」）；取对数后，减去行内均值等价于把每个样本投影到「对数空间过原点的超平面」上，使变换后的向量满足 $\sum_j \mathrm{clr}(x_{ij})=0$，从而解除定和约束引入的伪相关。
+- **多视角（几何）**：原始丰度点落在 $p$ 维单纯形上（自由度只有 $p-1$）；CLR 把它们平移到对数空间的一个 $(p-1)$ 维超平面上，让每个坐标独立变化，不再互相牵制。
+- **直觉类比**：把「全班 100 分总分里各科分数」换成「各科相对全班平均分的偏离」，才能公平比较不同学生——CLR 就是把「加起来等于 100 的成分」翻译成「相对多少」。
+
+\section{主模型：Logistic 回归 + L2 正则 + class\_weight}
+
+\subsection{线性得分与概率}
+
+\begin{equation}
+  z_i = \mathbf{w}^{\top}\mathrm{clr}(\mathbf{x}_i) + b,
+  \qquad
+  P(y_i=1\mid \mathbf{x}_i) = \sigma(z_i) = \frac{1}{1+e^{-z_i}}.
+  \label{eq:logistic}
+\end{equation}
+
+- 读法：样本 $i$ 患病的概率 $=$ sigmoid（权重与 CLR 特征的内积 $+$ 偏置）。
+- 因为：sigmoid 把线性得分 $z_i\in(-\infty,+\infty)$ 单调映射到 $(0,1)$，天然输出概率，支持阈值分析与 AUC 计算；且 sigmoid 是「对数几率」的逆——$\ln\frac{P}{1-P}=z_i$，即系数 $w_j$ 可解释为「第 $j$ 个物种 CLR 值每增加 1 单位，患病对数几率增加 $w_j$」，为 S2/S3 的微生物方向解释铺垫。
+
+\subsection{损失函数（负对数似然 + L2 惩罚）}
+
+\begin{equation}
+  \mathcal{L}(\mathbf{w},b) =
+  -\sum_{i=1}^{n}\Big[y_i\ln\sigma(z_i) + (1-y_i)\ln\big(1-\sigma(z_i)\big)\Big]
+  + \frac{\lambda}{2}\lVert\mathbf{w}\rVert_2^2.
+  \label{eq:loss}
+\end{equation}
+
+- 读法：损失 $=$ 所有样本的交叉熵之和 $+$ 正则强度 $\lambda$ 乘以权重向量二范数平方的一半。
+- 因为：第一项是交叉熵（衡量预测概率与真实标签的差距，是二分类负对数似然）；第二项 $\frac{\lambda}{2}\lVert\mathbf{w}\rVert_2^2$ 是 L2 惩罚，把权重向 0 收缩，防止 $n\ll p$（$110\sim253$ 样本 vs $264$ 特征）下的过拟合（PR-011 协方差收缩）。
+- **直觉类比**：L2 像「给每个系数套一根橡皮筋往 0 拉」，样本越少、特征越多，橡皮筋越紧，防止模型死记硬背噪声。
+- **sklearn 对应**：`LogisticRegression(penalty='l2', C=1.0)`，其中 $C=1/\lambda$（$C=1.0$ 即 $\lambda=1.0$，为默认起点，可调参）。
+
+\subsection{class\_weight='balanced'（类别不平衡处理）}
+\label{sec:classweight}
+
+\begin{equation}
+  w_c = \frac{n}{n_{\text{classes}} \times n_c},
+  \qquad
+  c \in \{0,1\}.
+  \label{eq:classweight}
+\end{equation}
+
+- 读法：类别 $c$ 的权重 $=$ 总样本数 $\div$（类别数 $\times$ 类别 $c$ 的样本数）。
+- 因为：少数类样本数 $n_c$ 小 $\Rightarrow$ 权重 $w_c$ 大 $\Rightarrow$ 损失中少数类样本被放大，迫使模型更关注少数类（针对 metahit 少数类 Recall$=0.400$ 的 F5 问题）。
+- 代入：metahit 患病类 $w_1 = 110/(2\times25) = 2.2$，健康类 $w_0 = 110/(2\times85) = 0.647$——患病样本权重是健康的 $3.4$ 倍。
+- **直觉类比**：像考试里「错一道难题扣分更多」，逼模型别只顾多数类拿高分。
+
+\section{对照模型与基线（规格）}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{3.0cm}p{4.2cm}p{6.2cm}}
+\toprule
+模型 & 输入 & 规格 \\
+\midrule
+Random Forest（对照） & 原始丰度（含零值，免 CLR，同样过 264 维过滤） & `RandomForestClassifier(n\_estimators=500, max\_depth=None, min\_samples\_leaf=1, random\_state=42)`，permutation importance \\
+单特征最佳阈值（基线） & 原始丰度（264 维） & 逐特征扫阈值取 AUC 最大 \\
+Dummy 多数类（基线） & — & `DummyClassifier(strategy='most\_frequent')` \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+- 因为：RF 用原始丰度（树模型对零值与单调变换不敏感，无需 CLR），作为非线性对照；单特征阈值与 Dummy 建立性能下界，防过度设计（F1 已建立）。
+
+\section{评估协议}
+\label{sec:eval}
+
+\subsection{AUC（主指标，阈值无关）}
+
+AUC（Area Under the ROC Curve，读作「ROC 曲线下面积」）定义为：随机取一个正样本与一个负样本，正样本得分高于负样本得分的概率。其 Mann--Whitney 形式：
+
+\begin{equation}
+  \mathrm{AUC} = \frac{1}{n^{+}n^{-}}
+  \sum_{i:y_i=1}\ \sum_{j:y_j=0}
+  \Big[ \mathbf{1}[s_i > s_j] + \tfrac{1}{2}\mathbf{1}[s_i = s_j] \Big],
+  \label{eq:auc}
+\end{equation}
+
+其中 $s_i=\sigma(z_i)$ 为样本 $i$ 的预测概率得分，$n^{+}$、$n^{-}$ 分别为正、负样本数。
+
+- 因为：AUC 不依赖分类阈值，且不受类别不平衡与标签方向影响，是跨数据集可比的最诚实指标（F5 实证：metahit ACC$=0.809$ 虚高而 Recall$=0.400$，AUC 才反映真实判别力）。
+- **直觉类比**：AUC 像「随机抽一个病人和一个健康人，模型把病人排在前面的概率」——$0.5$ 是瞎猜，$1.0$ 是完美。
+
+\subsection{F1 与 Recall（少数类）}
+
+\begin{equation}
+  \mathrm{Recall} = \frac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FN}},
+  \qquad
+  \mathrm{Precision} = \frac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FP}},
+  \qquad
+  F_1 = \frac{2\,\mathrm{Precision}\cdot\mathrm{Recall}}{\mathrm{Precision}+\mathrm{Recall}}.
+  \label{eq:f1}
+\end{equation}
+
+- 读法：Recall（召回率）$=$ 真阳性 $\div$（真阳性 $+$ 假阴性）；Precision（精确率）$=$ 真阳性 $\div$（真阳性 $+$ 假阳性）；$F_1$ 是两者的调和平均。
+- 因为：少数类（患病或健康，视数据集方向）是临床关注对象，漏检代价高，故以少数类 Recall 与 $F_1$ 为辅指标，ACC 仅参考。
+
+\subsection{分层 5 折交叉验证}
+
+\begin{equation}
+  \widehat{\mathrm{AUC}}_{\text{CV}} = \frac{1}{K}\sum_{k=1}^{K}\mathrm{AUC}^{(k)},
+  \qquad
+  K=5,\ \text{seed}=42.
+  \label{eq:cv}
+\end{equation}
+
+- 因为：小样本（$n=110\sim253$）下单一训练/测试切分方差大；分层 5 折保证每折类别比例与全量一致，$K=5$ 为小样本常规折数（LOOCV 兜底已覆盖更极端情形）。
+
+\subsection{LOOCV 过拟合判定}
+
+\begin{equation}
+  \Delta_{\text{overfit}} = \mathrm{AUC}_{\text{full}} - \mathrm{AUC}_{\text{LOOCV}},
+  \qquad
+  \text{判过拟合当}\ \Delta_{\text{overfit}} > 0.1.
+  \label{eq:loocv}
+\end{equation}
+
+- 读法：全量训练 AUC 减去留一法（Leave-One-Out）AUC 的差距，超过 $0.1$ 判为过拟合。
+- 因为：全量 AUC 是「在训练数据上自评」的乐观上界；LOOCV 每次留一个样本做测试，是 $n$ 次几乎无偏的诚实估计。两者差距大说明模型记住了训练噪声而非真实信号。
+
+\section{参数物理意义与取值范围汇总}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{2.6cm}p{5.4cm}p{5.4cm}}
+\toprule
+参数 & 物理意义 & 取值范围 \\
+\midrule
+$x_{ij}$ & 物种相对丰度 & $[0,100]$（定和 $\approx 100$） \\
+$\delta$ & 零值乘法替换伪值 & $6.5\times10^{-6}$（固定，AL-007） \\
+$\tau$ & 近全零过滤阈值 & $0.95$（固定，人类裁定） \\
+$p$ & 过滤后特征维数 & $264$（$p_0=1331$ 过滤后） \\
+$w_j$ & 第 $j$ 物种 CLR 系数 & $\mathbb{R}$（L2 收缩后 $\lVert\mathbf{w}\rVert_2$ 有界） \\
+$b$ & 截距 & $\mathbb{R}$ \\
+$\lambda$ & L2 正则强度 & $>0$，默认 $1.0$（$C=1/\lambda$） \\
+$C$ & 正则强度倒数 & $\{0.01,0.1,1,10,100\}$（调参候选） \\
+$w_c$ & 类别权重 & $>0$，balanced 时 $w_c=n/(2n_c)$ \\
+$K$ & CV 折数 & $5$（固定） \\
+$\Delta_{\text{overfit}}$ & 过拟合判定阈值 & $0.1$（固定） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{简化假设与合理性论证}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{3.2cm}p{5.2cm}p{5.0cm}}
+\toprule
+假设 & 内容 & 合理性 \\
+\midrule
+H1 成分数据 & 1331 维相对丰度是定和成分数据，线性模型前必须 CLR & F4 实证 CLR 增益 $+0.10\sim+0.15$，三数据集一致稳健 \\
+H2 零值处理 & 92.21\% 零值视为「低于检出限」真实稀疏，乘法替换 $\delta$ & AL-007 标准做法；$\delta$ 扰动不翻转结论 \\
+H2b 近全零过滤 & $z_j>0.95$ 特征剔除（$1331\to264$） & V2 实证不损失判别信息，与 S2 口径统一 \\
+H3 标签口径 & small\_adenoma 四口径敏感性分析 & 人类裁定全做择优，不预设单一口径 \\
+H4 独立同分布 & 三数据集各自独立建模，不跨数据集混合 & 批次效应强（F8），混合会引入伪信号 \\
+H5 内部验证 & 无外部数据，泛化靠 CV+LOOCV 诚实估计 & 全量 AUC 仅作乐观上界 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{数学自检}
+
+\begin{enumerate}
+  \item \textbf{回归方程自变量不含因变量}：Logistic 回归的自变量是 $\mathrm{clr}(\mathbf{x}_i)$（由原始丰度经 CLR 变换得到），不含 $y_i$ 本身或其代数变换；$y_i$ 仅出现在损失函数 \eqref{eq:loss} 的交叉熵项中作为监督信号。无「用因变量预测因变量」的循环。
+  \item \textbf{量纲一致}：CLR 变换后特征无量纲（对数比）；线性得分 $z_i$ 无量纲；sigmoid 输出概率无量纲；损失 \eqref{eq:loss} 第一项为交叉熵（无量纲），第二项 $\frac{\lambda}{2}\lVert\mathbf{w}\rVert_2^2$ 无量纲（$\lambda$ 与 $\mathbf{w}$ 均无量纲）。AUC/F1/Recall 均为无量纲比例。全链路量纲自洽。
+  \item \textbf{含 $\ln$ 变换的原始 $\to$ 变换 $\to$ 注意点表}：
+  \begin{center}
+  \footnotesize
+  \begin{tabular}{p{3.4cm}p{4.6cm}p{5.4cm}}
+  \toprule
+  原始量 & 变换 & 注意点 \\
+  \midrule
+  $x_{ij}=0$（零丰度） & $\max(x_{ij},\delta)$ 替换为 $\delta$ & 必须先替换再取对数，否则 $\ln 0$ 无定义 \\
+  $x_{ij}>0$（非零丰度） & $\ln x_{ij}$ & 丰度 $<1$ 时对数为负，属正常（相对量） \\
+  行内对数均值 & $\frac{1}{p}\sum_k\ln x_{ik}$ & 中心化后 $\sum_j\mathrm{clr}(x_{ij})=0$，每行和恒为 0 \\
+  $\mathrm{clr}(x_{ij})$ & 直接进 Logistic & 系数 $w_j$ 解释为「对数几率变化」，非原始丰度效应 \\
+  \bottomrule
+  \end{tabular}
+  \end{center}
+  \item \textbf{CLR 中心化正确性}：\eqref{eq:clr} 中 $\sum_j\mathrm{clr}(x_{ij})=\sum_j\ln x_{ij}-p\cdot\frac{1}{p}\sum_k\ln x_{ik}=0$，恒成立，解除定和约束。
+  \item \textbf{class\_weight 归一性}：\eqref{eq:classweight} 中 $\sum_c n_c w_c = n$（权重按样本数加权后总和等于总样本数），损失放大少数类但不改变总体尺度。
+\end{enumerate}
+
+\section{直觉解释（无公式）}
+
+疾病预测模型要回答：给一份肠道菌群样本，判断这个人有没有病。菌群数据有个麻烦——每个样本里几百上千种细菌的丰度加起来是固定的（像一张 100 分的卷子），所以一种细菌多了，别的必然显得少，这种「此消彼长」会骗过线性模型。我们先把几乎从不出现的细菌删掉（问卷里没人填的题），再把每种细菌的丰度换成「它比这个样本平均水平高多少还是低多少」（像把各科分数换成相对全班平均分的偏离），这样不同样本之间才公平可比。
+
+然后让一个线性模型学「哪些细菌偏高偏低对应生病」，同时给每个系数套一根橡皮筋往零拉，防止样本太少时模型死记硬背噪声；再给少数类（病人）加权，逼模型别只顾多数类（健康人）拿高分。最后用「随机抽一个病人和一个健康人，模型把病人排前面的概率」这个指标来打分，因为它不受「病人本来就少」的影响，跨三个数据集才公平可比。
+
+\section{假设检验计划}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{3.4cm}p{5.0cm}p{5.0cm}}
+\toprule
+核心假设 & 检验方法 & 结果/状态 \\
+\midrule
+H1 成分数据需 CLR & 对比 CLR 前后线性模型 AUC（F4） & 已证：A 类验证增益 $+0.146/+0.109/+0.099$ \\
+H2b 近全零过滤 & 过滤前后 AUC 对比（$1331$ vs $264$ 维） & 待验证：实现后重跑对比（V2 已初证不损失） \\
+H3 四口径 & small\_adenoma 四口径各跑主模型+对照，对比 AUC & 待验证：敏感性分析（2.1 实现后择优） \\
+H4 独立建模 & 三数据集分别建模，不混合 & 已证：设计保证（F8 批次效应强） \\
+H5 无过拟合 & 全量 AUC vs LOOCV AUC 差距 $\le 0.1$ & 待验证：2.1 实现后判定 \\
+B3 class\_weight & class\_weight 前后 Recall 对比 & 待验证：B 类验证（head-to-head） \\
+B4 离群样本 & 剔除 14 样本重训 Zeller 对比 AUC & 待验证：B 类验证（敏感性） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{方案讲解收束（math-explainer 6 条）}
+
+- \textbf{解决什么}：为三个宏基因组数据集各建一个「患病 vs 健康」二分类模型并诚实评估，回答「模型预测疾病表现如何、为何三数据集表现不同」。
+- \textbf{怎么做}：小样本高维成分数据 $\to$ 近全零过滤（$1331\to264$）$\to$ CLR 解除定和偏相关 $\to$ Logistic(L2)+class\_weight 为主、RF 对照、简单基线兜底、AUC 主指标 + F1/Recall(少数类) 诚实评估、按四重来源归因跨疾病差异。
+- \textbf{为什么}：成分数据需 CLR 解除定和偏相关（F4 实证）；L2 收缩抗小样本过拟合（PR-011）；AUC 不受类别不平衡与方向影响，是跨数据集可比的最诚实指标（F5 实证）。
+
+\textbf{防跳跃（可能需展开的概念点）}：CLR 为什么解除定和偏相关（几何均值中心化的数学含义，即单纯形到对数超平面的投影）；L2/Ridge 收缩的 $\lambda$ 选择（$C$ 调参的内层 CV 防泄漏）；LOOCV 为何是最小诚实估计（留一法几乎无偏）；成分数据零值的乘法替换公式（AL-007 的 $\delta=0.65\times$检出限）；permutation importance 与 Gini importance 的区别。如需后续展开可追问。
+
+\end{document}

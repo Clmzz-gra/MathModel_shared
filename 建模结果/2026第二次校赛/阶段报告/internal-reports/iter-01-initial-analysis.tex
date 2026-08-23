@@ -1,0 +1,81 @@
+% STATUS: draft
+% LAST_MODIFIED: 2026-08-21
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+
+\title{第二次模拟赛 B 题初始分析：基于宏基因组数据的疾病预测模型研究}
+\author{建模对话}
+\date{2026-08-21}
+
+\begin{document}
+\maketitle
+
+\section{问题重述}
+
+人类微生物组与宿主的免疫和代谢功能密切相关。利用鸟枪法宏基因组测序得到的
+484 个公开样本（涵盖结直肠癌、炎症性肠病 IBD、肥胖症三种疾病及其健康对照），
+从物种级相对丰度特征出发，需要完成三项任务：
+
+\begin{enumerate}
+  \item 开发疾病预测模型（二分类：患病 vs 健康），评估性能并分析不同疾病数据集上的性能差异及原因；
+  \item 开发特征选择方法，筛选最具影响力的微生物特征子集（潜在生物标志物），
+        分析其在不同疾病状态下的丰度变化趋势，并对比不同疾病类型下标志物的关系；
+  \item 建立跨疾病预测模型（一种或两种疾病训练、另一种新疾病测试），评估跨疾病预测性能，
+        可利用微生物的分类学信息。
+\end{enumerate}
+
+\section{子问题拆解}
+
+\begin{itemize}
+  \item \textbf{S1 疾病预测模型}：三个数据集各自的二分类建模（cancer/n、ibd/n、obesity/n），
+        模型选型 + 多指标评估 + 跨数据集性能差异分析。
+  \item \textbf{S2 特征选择与生物标志物}：高维特征筛选（数百~数千微生物特征 vs 484 样本），
+        Top 生物标志物清单 + 丰度趋势 + 跨疾病标志物关系分析。
+  \item \textbf{S3 跨疾病预测模型}：leave-one-disease-out 泛化评估，可借助分类学层级信息
+        （特征名含 k\_\_p\_\_c\_\_o\_\_f\_\_g\_\_s\_\_ 七级层级）。
+\end{itemize}
+
+\section{相关知识（知识库检索）}
+
+\begin{itemize}
+  \item 成分数据体系：MS-011 CLR 变换、MS-013 PLS-DA、AL-008 VIP、
+        AL-007 乘法替换法、PR-006 先对数比变换、PF-004 Pearson 误用。
+        相对丰度数据是典型成分数据（定和约束），CLR 变换是核心前置。
+  \item 分类体系：MS-026 Soft Voting、AL-016 XGBoost、AL-029 KNN、
+        AL-030 SVM、AL-031 随机森林、MS-067 Fisher LDA + Tikhonov 正则化。
+  \item 小样本保护链：PR-011 小样本正则化、PF-019 极小样本泛化评估（LOOCV）、
+        WF-004 StandardScaler→PCA→K-means→t-SNE 降维可视化工作流。
+  \item 陷阱卡：PF-007 类别不平衡（AUC/召回率）、PF-017 天花板效应、
+        PF-001 零膨胀（微生物丰度大量 0 值）。
+  \item 2025 国赛 C 题（NIPT）与本 B 题风格高度相似（生物医学数据 + 小样本 + 分类），
+        其卡片（MS-066~070、PF-016~019）可迁移借鉴，尤其是小样本评估框架。
+\end{itemize}
+
+\section{初始建模假设}
+
+\begin{enumerate}
+  \item 相对丰度是成分数据：每行特征和为常数（或近似），建模前需对数比变换（CLR），
+        或使用对稀疏/零值稳健的模型（XGBoost/RF）作为对照。
+  \item 特征维度（数百~数千）$\gg$ 样本量（484），存在严重过拟合风险；
+        必须结合特征选择 + 正则化 + 严格交叉验证（分层）。
+  \item 三个疾病数据集的标签标准不同（Colorectal: cancer；IBD: 两种亚型均为患病；
+        Obesity: obesity），建模时按各自标准构造二分类标签。
+  \item 跨疾病预测大概率性能显著下降（批次效应 + 疾病特异性微生物），
+        需要把"失败原因分析"本身作为交付物（而非回避）。
+  \item 生物学解释需要文献支撑（如结直肠癌相关已知标志物），
+        标志物分析以数据统计规律为主、生物学解释为辅。
+\end{enumerate}
+
+\section{待解决的开放问题}
+
+\begin{enumerate}
+  \item 是否对丰度做 CLR 变换 vs 直接用稀疏矩阵进树模型——需 A 类验证对比。
+  \item 特征选择方法选型：LASSO / 随机森林重要性 / 互信息 / 稳定性选择 / PLS-DA VIP——
+        需兼顾稳定性（小样本下特征选择方差大）。
+  \item 跨疾病模型的患病定义差异问题：训练集只有部分疾病，测试集是全新疾病，
+        二分类阈值如何迁移（概率校准）。
+  \item 分类学层级信息如何利用：特征聚合（属/门级）还是层级先验正则。
+  \item 三个数据集的样本量与患病比例未知，需数据盘点后确认类别不平衡程度。
+\end{enumerate}
+
+\end{document}

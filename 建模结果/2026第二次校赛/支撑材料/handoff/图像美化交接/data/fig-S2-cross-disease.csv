@@ -1,0 +1,10 @@
+﻿disease,disease2,jaccard
+CRC,CRC,1.000000
+CRC,IBD,0.000000
+CRC,Obesity,0.000000
+IBD,CRC,0.000000
+IBD,IBD,1.000000
+IBD,Obesity,0.000000
+Obesity,CRC,0.000000
+Obesity,IBD,0.000000
+Obesity,Obesity,1.000000

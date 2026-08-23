@@ -1,0 +1,18 @@
+% S2 τ 敏感性表 — 数据源 outputs/data/S2-results.pkl (meta.tau_counts)
+\begin{table}[htbp]
+\centering
+\caption{S2 稳定标志物入选数随 $\tau$ 变化（全量 bootstrap）}
+\label{tab:s2-tau-sensitivity}
+\small
+\begin{tabular}{lcccc}
+\toprule
+疾病 & $\tau=0.4$ & $\tau=0.5$ & $\tau=0.6$ & $\tau=0.7$ \\
+\midrule
+CRC & 6 & 4 & 3 & 2 \\
+IBD & 6 & 4 & 2 & 2 \\
+Obesity & 32 & 20 & 9 & 3 \\
+\bottomrule
+\end{tabular}
+\par\footnotesize
+注：CRC/IBD 入选数对 $\tau$ 不敏感（稳定簇与噪声可分）；Obesity 对 $\tau$ 敏感（弱信号）。
+\end{table}

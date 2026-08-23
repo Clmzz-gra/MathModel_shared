@@ -1,0 +1,801 @@
+﻿
+===== S1-results : E:\MathModel_pj-2026-sim2-B\outputs\data\S1-results.pkl =====
+ROOT TYPE: dict
+[DICT] meta  (type=dict, len=4)
+  [DICT] meta.generated  (type=str, len=11)
+  [DICT] meta.source  (type=str, len=42)
+  [DICT] meta.note  (type=str, len=114)
+  [DICT] meta.field_semantics  (type=dict, len=10)
+    [DICT] meta.field_semantics.<ds>.L2_CLR.AUC  (type=str, len=23)
+    [DICT] meta.field_semantics.<ds>.L2_CLR.confusion_matrix  (type=str, len=42)
+    [DICT] meta.field_semantics.<ds>.L2_CLR.coefficients  (type=str, len=28)
+    [DICT] meta.field_semantics.<ds>.RF_raw.feature_importances  (type=str, len=49)
+    [DICT] meta.field_semantics.<ds>.baseline.single_feature_best_AUC  (type=str, len=25)
+    [DICT] meta.field_semantics.<ds>.LOOCV.AUC  (type=str, len=20)
+    [DICT] meta.field_semantics.<ds>.soft_voting  (type=str, len=33)
+    [DICT] meta.field_semantics.adenoma_sensitivity.selected_main_caliber  (type=str, len=29)
+    [DICT] meta.field_semantics.B3_class_weight  (type=str, len=54)
+    [DICT] meta.field_semantics.B4_outlier_removal  (type=str, len=30)
+[DICT] Zeller_fecal_colorectal_cancer  (type=dict, len=8)
+  [DICT] Zeller_fecal_colorectal_cancer.L2_CLR  (type=dict, len=10)
+    [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.AUC  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.AUC_std  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.ACC  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.F1_minority  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.Recall_minority  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.confusion_matrix  (type=list, len=2)
+      [LIST] Zeller_fecal_colorectal_cancer.L2_CLR.confusion_matrix len=2 elem0_type=list
+        [LIST] Zeller_fecal_colorectal_cancer.L2_CLR.confusion_matrix[0] len=2 elem0_type=int
+    [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.cv_folds  (type=list, len=5)
+      [LIST] Zeller_fecal_colorectal_cancer.L2_CLR.cv_folds len=5 elem0_type=dict
+        [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.cv_folds[0].AUC  (type=float, len=-)
+        [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.cv_folds[0].ACC  (type=float, len=-)
+        [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.cv_folds[0].F1  (type=float, len=-)
+        [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.cv_folds[0].Recall  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.coefficients  (type=ndarray, len=264)
+    [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.intercept  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.L2_CLR.oof_prob  (type=ndarray, len=121)
+  [DICT] Zeller_fecal_colorectal_cancer.RF_raw  (type=dict, len=9)
+    [DICT] Zeller_fecal_colorectal_cancer.RF_raw.AUC  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.RF_raw.AUC_std  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.RF_raw.ACC  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.RF_raw.F1_minority  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.RF_raw.Recall_minority  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.RF_raw.confusion_matrix  (type=list, len=2)
+      [LIST] Zeller_fecal_colorectal_cancer.RF_raw.confusion_matrix len=2 elem0_type=list
+        [LIST] Zeller_fecal_colorectal_cancer.RF_raw.confusion_matrix[0] len=2 elem0_type=int
+    [DICT] Zeller_fecal_colorectal_cancer.RF_raw.cv_folds  (type=list, len=5)
+      [LIST] Zeller_fecal_colorectal_cancer.RF_raw.cv_folds len=5 elem0_type=dict
+        [DICT] Zeller_fecal_colorectal_cancer.RF_raw.cv_folds[0].AUC  (type=float, len=-)
+        [DICT] Zeller_fecal_colorectal_cancer.RF_raw.cv_folds[0].ACC  (type=float, len=-)
+        [DICT] Zeller_fecal_colorectal_cancer.RF_raw.cv_folds[0].F1  (type=float, len=-)
+        [DICT] Zeller_fecal_colorectal_cancer.RF_raw.cv_folds[0].Recall  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.RF_raw.feature_importances  (type=ndarray, len=264)
+    [DICT] Zeller_fecal_colorectal_cancer.RF_raw.oof_prob  (type=ndarray, len=121)
+  [DICT] Zeller_fecal_colorectal_cancer.baseline  (type=dict, len=3)
+    [DICT] Zeller_fecal_colorectal_cancer.baseline.single_feature_best_AUC  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.baseline.dummy_ACC  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.baseline.dummy_AUC  (type=float, len=-)
+  [DICT] Zeller_fecal_colorectal_cancer.LOOCV  (type=dict, len=1)
+    [DICT] Zeller_fecal_colorectal_cancer.LOOCV.AUC  (type=float, len=-)
+  [DICT] Zeller_fecal_colorectal_cancer.full_AUC  (type=float, len=-)
+  [DICT] Zeller_fecal_colorectal_cancer.overfit_delta  (type=float, len=-)
+  [DICT] Zeller_fecal_colorectal_cancer.overfit_flag  (type=bool, len=-)
+  [DICT] Zeller_fecal_colorectal_cancer.soft_voting  (type=dict, len=6)
+    [DICT] Zeller_fecal_colorectal_cancer.soft_voting.AUC  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.soft_voting.ACC  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.soft_voting.F1_minority  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.soft_voting.Recall_minority  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.soft_voting.vs_best_single_delta_AUC  (type=float, len=-)
+    [DICT] Zeller_fecal_colorectal_cancer.soft_voting.ensemble_beneficial  (type=bool, len=-)
+[DICT] metahit  (type=dict, len=8)
+  [DICT] metahit.L2_CLR  (type=dict, len=10)
+    [DICT] metahit.L2_CLR.AUC  (type=float, len=-)
+    [DICT] metahit.L2_CLR.AUC_std  (type=float, len=-)
+    [DICT] metahit.L2_CLR.ACC  (type=float, len=-)
+    [DICT] metahit.L2_CLR.F1_minority  (type=float, len=-)
+    [DICT] metahit.L2_CLR.Recall_minority  (type=float, len=-)
+    [DICT] metahit.L2_CLR.confusion_matrix  (type=list, len=2)
+      [LIST] metahit.L2_CLR.confusion_matrix len=2 elem0_type=list
+        [LIST] metahit.L2_CLR.confusion_matrix[0] len=2 elem0_type=int
+    [DICT] metahit.L2_CLR.cv_folds  (type=list, len=5)
+      [LIST] metahit.L2_CLR.cv_folds len=5 elem0_type=dict
+        [DICT] metahit.L2_CLR.cv_folds[0].AUC  (type=float, len=-)
+        [DICT] metahit.L2_CLR.cv_folds[0].ACC  (type=float, len=-)
+        [DICT] metahit.L2_CLR.cv_folds[0].F1  (type=float, len=-)
+        [DICT] metahit.L2_CLR.cv_folds[0].Recall  (type=float, len=-)
+    [DICT] metahit.L2_CLR.coefficients  (type=ndarray, len=264)
+    [DICT] metahit.L2_CLR.intercept  (type=float, len=-)
+    [DICT] metahit.L2_CLR.oof_prob  (type=ndarray, len=110)
+  [DICT] metahit.RF_raw  (type=dict, len=9)
+    [DICT] metahit.RF_raw.AUC  (type=float, len=-)
+    [DICT] metahit.RF_raw.AUC_std  (type=float, len=-)
+    [DICT] metahit.RF_raw.ACC  (type=float, len=-)
+    [DICT] metahit.RF_raw.F1_minority  (type=float, len=-)
+    [DICT] metahit.RF_raw.Recall_minority  (type=float, len=-)
+    [DICT] metahit.RF_raw.confusion_matrix  (type=list, len=2)
+      [LIST] metahit.RF_raw.confusion_matrix len=2 elem0_type=list
+        [LIST] metahit.RF_raw.confusion_matrix[0] len=2 elem0_type=int
+    [DICT] metahit.RF_raw.cv_folds  (type=list, len=5)
+      [LIST] metahit.RF_raw.cv_folds len=5 elem0_type=dict
+        [DICT] metahit.RF_raw.cv_folds[0].AUC  (type=float, len=-)
+        [DICT] metahit.RF_raw.cv_folds[0].ACC  (type=float, len=-)
+        [DICT] metahit.RF_raw.cv_folds[0].F1  (type=float, len=-)
+        [DICT] metahit.RF_raw.cv_folds[0].Recall  (type=float, len=-)
+    [DICT] metahit.RF_raw.feature_importances  (type=ndarray, len=264)
+    [DICT] metahit.RF_raw.oof_prob  (type=ndarray, len=110)
+  [DICT] metahit.baseline  (type=dict, len=3)
+    [DICT] metahit.baseline.single_feature_best_AUC  (type=float, len=-)
+    [DICT] metahit.baseline.dummy_ACC  (type=float, len=-)
+    [DICT] metahit.baseline.dummy_AUC  (type=float, len=-)
+  [DICT] metahit.LOOCV  (type=dict, len=1)
+    [DICT] metahit.LOOCV.AUC  (type=float, len=-)
+  [DICT] metahit.full_AUC  (type=float, len=-)
+  [DICT] metahit.overfit_delta  (type=float, len=-)
+  [DICT] metahit.overfit_flag  (type=bool, len=-)
+  [DICT] metahit.soft_voting  (type=dict, len=6)
+    [DICT] metahit.soft_voting.AUC  (type=float, len=-)
+    [DICT] metahit.soft_voting.ACC  (type=float, len=-)
+    [DICT] metahit.soft_voting.F1_minority  (type=float, len=-)
+    [DICT] metahit.soft_voting.Recall_minority  (type=float, len=-)
+    [DICT] metahit.soft_voting.vs_best_single_delta_AUC  (type=float, len=-)
+    [DICT] metahit.soft_voting.ensemble_beneficial  (type=bool, len=-)
+[DICT] Chatelier_gut_obesity  (type=dict, len=8)
+  [DICT] Chatelier_gut_obesity.L2_CLR  (type=dict, len=10)
+    [DICT] Chatelier_gut_obesity.L2_CLR.AUC  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.L2_CLR.AUC_std  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.L2_CLR.ACC  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.L2_CLR.F1_minority  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.L2_CLR.Recall_minority  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.L2_CLR.confusion_matrix  (type=list, len=2)
+      [LIST] Chatelier_gut_obesity.L2_CLR.confusion_matrix len=2 elem0_type=list
+        [LIST] Chatelier_gut_obesity.L2_CLR.confusion_matrix[0] len=2 elem0_type=int
+    [DICT] Chatelier_gut_obesity.L2_CLR.cv_folds  (type=list, len=5)
+      [LIST] Chatelier_gut_obesity.L2_CLR.cv_folds len=5 elem0_type=dict
+        [DICT] Chatelier_gut_obesity.L2_CLR.cv_folds[0].AUC  (type=float, len=-)
+        [DICT] Chatelier_gut_obesity.L2_CLR.cv_folds[0].ACC  (type=float, len=-)
+        [DICT] Chatelier_gut_obesity.L2_CLR.cv_folds[0].F1  (type=float, len=-)
+        [DICT] Chatelier_gut_obesity.L2_CLR.cv_folds[0].Recall  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.L2_CLR.coefficients  (type=ndarray, len=264)
+    [DICT] Chatelier_gut_obesity.L2_CLR.intercept  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.L2_CLR.oof_prob  (type=ndarray, len=253)
+  [DICT] Chatelier_gut_obesity.RF_raw  (type=dict, len=9)
+    [DICT] Chatelier_gut_obesity.RF_raw.AUC  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.RF_raw.AUC_std  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.RF_raw.ACC  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.RF_raw.F1_minority  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.RF_raw.Recall_minority  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.RF_raw.confusion_matrix  (type=list, len=2)
+      [LIST] Chatelier_gut_obesity.RF_raw.confusion_matrix len=2 elem0_type=list
+        [LIST] Chatelier_gut_obesity.RF_raw.confusion_matrix[0] len=2 elem0_type=int
+    [DICT] Chatelier_gut_obesity.RF_raw.cv_folds  (type=list, len=5)
+      [LIST] Chatelier_gut_obesity.RF_raw.cv_folds len=5 elem0_type=dict
+        [DICT] Chatelier_gut_obesity.RF_raw.cv_folds[0].AUC  (type=float, len=-)
+        [DICT] Chatelier_gut_obesity.RF_raw.cv_folds[0].ACC  (type=float, len=-)
+        [DICT] Chatelier_gut_obesity.RF_raw.cv_folds[0].F1  (type=float, len=-)
+        [DICT] Chatelier_gut_obesity.RF_raw.cv_folds[0].Recall  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.RF_raw.feature_importances  (type=ndarray, len=264)
+    [DICT] Chatelier_gut_obesity.RF_raw.oof_prob  (type=ndarray, len=253)
+  [DICT] Chatelier_gut_obesity.baseline  (type=dict, len=3)
+    [DICT] Chatelier_gut_obesity.baseline.single_feature_best_AUC  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.baseline.dummy_ACC  (type=float, len=-)
+    [DICT] Chatelier_gut_obesity.baseline.dummy_AUC  (type=float, len=-)
+  [DICT] Chatelier_gut_obesity.LOOCV  (type=dict, len=1)
+    [DICT] Chatelier_gut_obesity.LOOCV.AUC  (type=float, len=-)
+  [DICT] Chatelier_gut_obesity.full_AUC  (type=float, len=-)
+  [DICT] Chatelier_gut_obesity.overfit_delta  (type=float, len=-)
+  [DICT] Chatelier_gut_obesity.overfit_flag  (type=bool, len=-)
+  [DICT] Chatelier_gut_obesity.soft_voting  (type=NoneType, len=-)
+[DICT] adenoma_sensitivity  (type=dict, len=5)
+  [DICT] adenoma_sensitivity.CRC_adenoma_as_healthy  (type=dict, len=3)
+    [DICT] adenoma_sensitivity.CRC_adenoma_as_healthy.L2_AUC  (type=float, len=-)
+    [DICT] adenoma_sensitivity.CRC_adenoma_as_healthy.RF_AUC  (type=float, len=-)
+    [DICT] adenoma_sensitivity.CRC_adenoma_as_healthy.n_samples  (type=int, len=-)
+  [DICT] adenoma_sensitivity.CRC_adenoma_as_diseased  (type=dict, len=3)
+    [DICT] adenoma_sensitivity.CRC_adenoma_as_diseased.L2_AUC  (type=float, len=-)
+    [DICT] adenoma_sensitivity.CRC_adenoma_as_diseased.RF_AUC  (type=float, len=-)
+    [DICT] adenoma_sensitivity.CRC_adenoma_as_diseased.n_samples  (type=int, len=-)
+  [DICT] adenoma_sensitivity.CRC_adenoma_excluded  (type=dict, len=3)
+    [DICT] adenoma_sensitivity.CRC_adenoma_excluded.L2_AUC  (type=float, len=-)
+    [DICT] adenoma_sensitivity.CRC_adenoma_excluded.RF_AUC  (type=float, len=-)
+    [DICT] adenoma_sensitivity.CRC_adenoma_excluded.n_samples  (type=int, len=-)
+  [DICT] adenoma_sensitivity.CRC_adenoma_separate  (type=dict, len=4)
+    [DICT] adenoma_sensitivity.CRC_adenoma_separate.L2_AUC  (type=float, len=-)
+    [DICT] adenoma_sensitivity.CRC_adenoma_separate.RF_AUC  (type=float, len=-)
+    [DICT] adenoma_sensitivity.CRC_adenoma_separate.n_samples  (type=int, len=-)
+    [DICT] adenoma_sensitivity.CRC_adenoma_separate.adenoma_profile  (type=dict, len=3)
+      [DICT] adenoma_sensitivity.CRC_adenoma_separate.adenoma_profile.n_adenoma  (type=int, len=-)
+      [DICT] adenoma_sensitivity.CRC_adenoma_separate.adenoma_profile.mean_abundance  (type=ndarray, len=264)
+      [DICT] adenoma_sensitivity.CRC_adenoma_separate.adenoma_profile.top10_features  (type=list, len=10)
+        [LIST] adenoma_sensitivity.CRC_adenoma_separate.adenoma_profile.top10_features len=10 elem0_type=dict
+  [DICT] adenoma_sensitivity.selected_main_caliber  (type=str, len=7)
+[DICT] B3_class_weight  (type=dict, len=3)
+  [DICT] B3_class_weight.balanced  (type=dict, len=3)
+    [DICT] B3_class_weight.balanced.AUC  (type=float, len=-)
+    [DICT] B3_class_weight.balanced.Recall_minority  (type=float, len=-)
+    [DICT] B3_class_weight.balanced.F1_minority  (type=float, len=-)
+  [DICT] B3_class_weight.none  (type=dict, len=3)
+    [DICT] B3_class_weight.none.AUC  (type=float, len=-)
+    [DICT] B3_class_weight.none.Recall_minority  (type=float, len=-)
+    [DICT] B3_class_weight.none.F1_minority  (type=float, len=-)
+  [DICT] B3_class_weight.delta_Recall  (type=float, len=-)
+[DICT] B4_outlier_removal  (type=dict, len=8)
+  [DICT] B4_outlier_removal.n_outliers_removed  (type=int, len=-)
+  [DICT] B4_outlier_removal.k_pca_used  (type=int, len=-)
+  [DICT] B4_outlier_removal.full_L2_AUC  (type=float, len=-)
+  [DICT] B4_outlier_removal.full_RF_AUC  (type=float, len=-)
+  [DICT] B4_outlier_removal.removed_L2_AUC  (type=float, len=-)
+  [DICT] B4_outlier_removal.removed_RF_AUC  (type=float, len=-)
+  [DICT] B4_outlier_removal.delta_L2_AUC  (type=float, len=-)
+  [DICT] B4_outlier_removal.delta_RF_AUC  (type=float, len=-)
+
+===== S1-preprocessed : E:\MathModel_pj-2026-sim2-B\outputs\data\S1-preprocessed.pkl =====
+ROOT TYPE: dict
+[DICT] meta  (type=dict, len=4)
+  [DICT] meta.generated  (type=str, len=10)
+  [DICT] meta.source  (type=str, len=18)
+  [DICT] meta.note  (type=str, len=57)
+  [DICT] meta.field_semantics  (type=dict, len=6)
+    [DICT] meta.field_semantics.datasets.<name>.y  (type=str, len=37)
+    [DICT] meta.field_semantics.datasets.<name>.X_raw  (type=str, len=27)
+    [DICT] meta.field_semantics.datasets.<name>.X_clr  (type=str, len=25)
+    [DICT] meta.field_semantics.datasets.<name>.folds  (type=str, len=57)
+    [DICT] meta.field_semantics.adenoma_calibers.*.y  (type=str, len=58)
+    [DICT] meta.field_semantics.adenoma_calibers.CRC_adenoma_separate.adenoma_indices  (type=str, len=40)
+[DICT] feature_names  (type=list, len=264)
+  [LIST] feature_names len=264 elem0_type=str
+[DICT] filter  (type=dict, len=5)
+  [DICT] filter.n_features_before  (type=int, len=-)
+  [DICT] filter.n_features_after  (type=int, len=-)
+  [DICT] filter.n_removed  (type=int, len=-)
+  [DICT] filter.zero_ratio_threshold  (type=float, len=-)
+  [DICT] filter.kept_indices  (type=list, len=264)
+    [LIST] filter.kept_indices len=264 elem0_type=int
+[DICT] clr  (type=dict, len=2)
+  [DICT] clr.delta  (type=float, len=-)
+  [DICT] clr.function  (type=str, len=56)
+[DICT] datasets  (type=dict, len=3)
+  [DICT] datasets.Zeller_fecal_colorectal_cancer  (type=dict, len=6)
+    [DICT] datasets.Zeller_fecal_colorectal_cancer.X_raw  (type=ndarray, len=121)
+    [DICT] datasets.Zeller_fecal_colorectal_cancer.X_clr  (type=ndarray, len=121)
+    [DICT] datasets.Zeller_fecal_colorectal_cancer.y  (type=ndarray, len=121)
+    [DICT] datasets.Zeller_fecal_colorectal_cancer.minority  (type=int, len=-)
+    [DICT] datasets.Zeller_fecal_colorectal_cancer.folds  (type=list, len=5)
+      [LIST] datasets.Zeller_fecal_colorectal_cancer.folds len=5 elem0_type=dict
+        [DICT] datasets.Zeller_fecal_colorectal_cancer.folds[0].train  (type=list, len=96)
+        [DICT] datasets.Zeller_fecal_colorectal_cancer.folds[0].test  (type=list, len=25)
+    [DICT] datasets.Zeller_fecal_colorectal_cancer.n_samples  (type=int, len=-)
+  [DICT] datasets.metahit  (type=dict, len=6)
+    [DICT] datasets.metahit.X_raw  (type=ndarray, len=110)
+    [DICT] datasets.metahit.X_clr  (type=ndarray, len=110)
+    [DICT] datasets.metahit.y  (type=ndarray, len=110)
+    [DICT] datasets.metahit.minority  (type=int, len=-)
+    [DICT] datasets.metahit.folds  (type=list, len=5)
+      [LIST] datasets.metahit.folds len=5 elem0_type=dict
+        [DICT] datasets.metahit.folds[0].train  (type=list, len=88)
+        [DICT] datasets.metahit.folds[0].test  (type=list, len=22)
+    [DICT] datasets.metahit.n_samples  (type=int, len=-)
+  [DICT] datasets.Chatelier_gut_obesity  (type=dict, len=6)
+    [DICT] datasets.Chatelier_gut_obesity.X_raw  (type=ndarray, len=253)
+    [DICT] datasets.Chatelier_gut_obesity.X_clr  (type=ndarray, len=253)
+    [DICT] datasets.Chatelier_gut_obesity.y  (type=ndarray, len=253)
+    [DICT] datasets.Chatelier_gut_obesity.minority  (type=int, len=-)
+    [DICT] datasets.Chatelier_gut_obesity.folds  (type=list, len=5)
+      [LIST] datasets.Chatelier_gut_obesity.folds len=5 elem0_type=dict
+        [DICT] datasets.Chatelier_gut_obesity.folds[0].train  (type=list, len=202)
+        [DICT] datasets.Chatelier_gut_obesity.folds[0].test  (type=list, len=51)
+    [DICT] datasets.Chatelier_gut_obesity.n_samples  (type=int, len=-)
+[DICT] adenoma_calibers  (type=dict, len=4)
+  [DICT] adenoma_calibers.CRC_adenoma_as_healthy  (type=dict, len=5)
+    [DICT] adenoma_calibers.CRC_adenoma_as_healthy.y  (type=ndarray, len=121)
+    [DICT] adenoma_calibers.CRC_adenoma_as_healthy.n_samples  (type=int, len=-)
+    [DICT] adenoma_calibers.CRC_adenoma_as_healthy.minority  (type=int, len=-)
+    [DICT] adenoma_calibers.CRC_adenoma_as_healthy.folds  (type=list, len=5)
+      [LIST] adenoma_calibers.CRC_adenoma_as_healthy.folds len=5 elem0_type=dict
+        [DICT] adenoma_calibers.CRC_adenoma_as_healthy.folds[0].train  (type=list, len=96)
+        [DICT] adenoma_calibers.CRC_adenoma_as_healthy.folds[0].test  (type=list, len=25)
+    [DICT] adenoma_calibers.CRC_adenoma_as_healthy.note  (type=str, len=41)
+  [DICT] adenoma_calibers.CRC_adenoma_as_diseased  (type=dict, len=5)
+    [DICT] adenoma_calibers.CRC_adenoma_as_diseased.y  (type=ndarray, len=121)
+    [DICT] adenoma_calibers.CRC_adenoma_as_diseased.n_samples  (type=int, len=-)
+    [DICT] adenoma_calibers.CRC_adenoma_as_diseased.minority  (type=int, len=-)
+    [DICT] adenoma_calibers.CRC_adenoma_as_diseased.folds  (type=list, len=5)
+      [LIST] adenoma_calibers.CRC_adenoma_as_diseased.folds len=5 elem0_type=dict
+        [DICT] adenoma_calibers.CRC_adenoma_as_diseased.folds[0].train  (type=list, len=96)
+        [DICT] adenoma_calibers.CRC_adenoma_as_diseased.folds[0].test  (type=list, len=25)
+    [DICT] adenoma_calibers.CRC_adenoma_as_diseased.note  (type=str, len=34)
+  [DICT] adenoma_calibers.CRC_adenoma_excluded  (type=dict, len=6)
+    [DICT] adenoma_calibers.CRC_adenoma_excluded.y  (type=ndarray, len=95)
+    [DICT] adenoma_calibers.CRC_adenoma_excluded.n_samples  (type=int, len=-)
+    [DICT] adenoma_calibers.CRC_adenoma_excluded.minority  (type=int, len=-)
+    [DICT] adenoma_calibers.CRC_adenoma_excluded.folds  (type=list, len=5)
+      [LIST] adenoma_calibers.CRC_adenoma_excluded.folds len=5 elem0_type=dict
+        [DICT] adenoma_calibers.CRC_adenoma_excluded.folds[0].train  (type=list, len=76)
+        [DICT] adenoma_calibers.CRC_adenoma_excluded.folds[0].test  (type=list, len=19)
+    [DICT] adenoma_calibers.CRC_adenoma_excluded.keep_mask  (type=ndarray, len=121)
+    [DICT] adenoma_calibers.CRC_adenoma_excluded.note  (type=str, len=41)
+  [DICT] adenoma_calibers.CRC_adenoma_separate  (type=dict, len=7)
+    [DICT] adenoma_calibers.CRC_adenoma_separate.y  (type=ndarray, len=95)
+    [DICT] adenoma_calibers.CRC_adenoma_separate.n_samples  (type=int, len=-)
+    [DICT] adenoma_calibers.CRC_adenoma_separate.minority  (type=int, len=-)
+    [DICT] adenoma_calibers.CRC_adenoma_separate.folds  (type=list, len=5)
+      [LIST] adenoma_calibers.CRC_adenoma_separate.folds len=5 elem0_type=dict
+        [DICT] adenoma_calibers.CRC_adenoma_separate.folds[0].train  (type=list, len=76)
+        [DICT] adenoma_calibers.CRC_adenoma_separate.folds[0].test  (type=list, len=19)
+    [DICT] adenoma_calibers.CRC_adenoma_separate.keep_mask  (type=ndarray, len=121)
+    [DICT] adenoma_calibers.CRC_adenoma_separate.adenoma_indices  (type=list, len=26)
+      [LIST] adenoma_calibers.CRC_adenoma_separate.adenoma_indices len=26 elem0_type=int
+    [DICT] adenoma_calibers.CRC_adenoma_separate.note  (type=str, len=39)
+
+===== PDF: S1-roc-curve.pdf =====
+pages: 1
+--- page 0 text ---
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+�������ʣ�FPR��
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+�������ʣ�TPR��
+Zeller��n=121��
+L2(CLR) AUC 0.791
+RF AUC 0.845
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+�������ʣ�FPR��
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+�������ʣ�TPR��
+metahit��n=110��
+L2(CLR) AUC 0.887
+RF AUC 0.904
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+�������ʣ�FPR��
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+�������ʣ�TPR��
+Chatelier��n=253��
+L2(CLR) AUC 0.650
+RF AUC 0.660
+�����ݼ� ROC ���ߣ�L2+CLR ��ģ���� RF ���գ�5 �� CV OOF��
+--- page 0: 31 blocks ---
+  (35,270)-(50,280): 0.0
+  (80,270)-(95,280): 0.2
+  (126,270)-(141,280): 0.4
+  (172,270)-(187,280): 0.6
+  (217,270)-(232,280): 0.8
+  (263,270)-(278,280): 1.0
+  (119,283)-(194,293): �������ʣ�FPR��
+  (20,259)-(35,269): 0.0
+  (20,214)-(35,224): 0.2
+  (20,168)-(35,178): 0.4
+  (20,122)-(35,132): 0.6
+  (20,77)-(35,87): 0.8
+  (20,31)-(35,41): 1.0
+  (6,113)-(16,188): �������ʣ�TPR��
+  (111,20)-(201,32): Zeller��n=121��
+  (195,239)-(263,247): L2(CLR) AUC 0.791
+  (195,249)-(243,257): RF AUC 0.845
+  (323,270)-(338,280): 0.0
+  (368,270)-(383,280): 0.2
+  (414,270)-(429,280): 0.4
+  (460,270)-(475,280): 0.6
+  (505,270)-(520,280): 0.8
+  (551,270)-(566,280): 1.0
+  (407,283)-(482,293): �������ʣ�FPR��
+  (308,259)-(323,269): 0.0
+  (308,214)-(323,224): 0.2
+  (308,168)-(323,178): 0.4
+  (308,122)-(323,132): 0.6
+  (308,77)-(323,87): 0.8
+  (308,31)-(323,41): 1.0
+  (294,113)-(304,188): �������ʣ�TPR��
+  (396,20)-(492,32): metahit��n=110��
+  (483,239)-(551,247): L2(CLR) AUC 0.887
+  (483,249)-(531,257): RF AUC 0.904
+  (611,270)-(626,280): 0.0
+  (656,270)-(671,280): 0.2
+  (702,270)-(717,280): 0.4
+  (748,270)-(763,280): 0.6
+  (793,270)-(808,280): 0.8
+  (839,270)-(854,280): 1.0
+  (695,283)-(770,293): �������ʣ�FPR��
+  (596,259)-(611,269): 0.0
+  (596,214)-(611,224): 0.2
+  (596,168)-(611,178): 0.4
+  (596,122)-(611,132): 0.6
+  (596,77)-(611,87): 0.8
+  (596,31)-(611,41): 1.0
+  (582,113)-(592,188): �������ʣ�TPR��
+  (678,20)-(786,32): Chatelier��n=253��
+  (771,239)-(839,247): L2(CLR) AUC 0.650
+  (771,249)-(819,257): RF AUC 0.660
+  (260,7)-(602,19): �����ݼ� ROC ���ߣ�L2+CLR ��ģ���� RF ���գ�5 �� CV OOF��
+
+===== PDF: S1-performance-compare.pdf =====
+pages: 1
+--- page 0 text ---
+Zeller
+metahit
+Chatelier
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+AUC
+0.791
+0.887
+0.650
+0.845
+0.904
+0.660
+0.758
+0.815
+0.639
+Dummy ��������� 0.5
+�����ݼ� L2 / RF / ���������� AUC �Աȣ�5 �� CV�������ʾ�ۼ��׼�
+L2(CLR)
+RF
+����������
+--- page 0: 18 blocks ---
+  (119,315)-(149,325): Zeller
+  (292,315)-(327,325): metahit
+  (462,315)-(507,325): Chatelier
+  (19,305)-(34,315): 0.0
+  (19,248)-(34,258): 0.2
+  (19,190)-(34,200): 0.4
+  (19,133)-(34,143): 0.6
+  (19,75)-(34,85): 0.8
+  (19,18)-(34,28): 1.0
+  (5,159)-(15,174): AUC
+  (78,41)-(98,49): 0.791
+  (254,22)-(274,30): 0.887
+  (429,90)-(449,98): 0.650
+  (124,35)-(144,43): 0.845
+  (299,24)-(319,32): 0.904
+  (474,94)-(494,102): 0.660
+  (170,79)-(190,88): 0.758
+  (345,63)-(365,71): 0.815
+  (520,114)-(540,122): 0.639
+  (488,155)-(558,162): Dummy ��������� 0.5
+  (96,7)-(522,19): �����ݼ� L2 / RF / ���������� AUC �Աȣ�5 �� CV�������ʾ�ۼ��׼�
+  (377,32)-(412,42): L2(CLR)
+  (460,32)-(470,42): RF
+  (518,32)-(568,42): ����������
+
+===== PDF: S1-adenoma-sensitivity.pdf =====
+pages: 1
+--- page 0 text ---
+�ٹ齡��
+(n=121)
+�ڹ鲡��
+(n=121)
+���޳�
+(n=95)
+�ܵ���һ��
+(n=95)
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+AUC
+0.791
+0.611
+0.802
+0.802
+0.845
+0.651
+0.867
+0.867
+���ھ�
+Zeller small_adenoma �Ŀھ�����ԶԱȣ�L2 �� RF����ӰΪ���ھ���
+L2(CLR)
+RF
+--- page 0: 22 blocks ---
+  (110,305)-(150,315): �ٹ齡��
+  (112,315)-(147,325): (n=121)
+  (238,305)-(278,315): �ڹ鲡��
+  (240,315)-(275,325): (n=121)
+  (371,305)-(401,315): ���޳�
+  (371,315)-(401,325): (n=95)
+  (489,305)-(539,315): �ܵ���һ��
+  (499,315)-(529,325): (n=95)
+  (19,293)-(34,303): 0.0
+  (19,238)-(34,248): 0.2
+  (19,183)-(34,193): 0.4
+  (19,128)-(34,138): 0.6
+  (19,73)-(34,83): 0.8
+  (19,18)-(34,28): 1.0
+  (5,153)-(15,168): AUC
+  (101,70)-(121,78): 0.791
+  (229,119)-(249,127): 0.611
+  (357,66)-(377,74): 0.802
+  (485,66)-(505,74): 0.802
+  (139,54)-(159,62): 0.845
+  (267,108)-(287,116): 0.651
+  (395,49)-(415,57): 0.867
+  (524,49)-(544,57): 0.867
+  (118,28)-(142,36): ���ھ�
+  (120,7)-(498,19): Zeller small_adenoma �Ŀھ�����ԶԱȣ�L2 �� RF����ӰΪ���ھ���
+  (89,36)-(124,46): L2(CLR)
+  (172,36)-(182,46): RF
+
+===== PDF: S1-feature-importance.pdf =====
+pages: 1
+--- page 0 text ---
+-0.2
+0.0
+0.2
+L2 ϵ����CLR �ռ䣩
+Peptostreptococcus_stomatis
+Fusobacterium_nucleatum
+Lachnospiraceae_bacterium_1_4_56FAA
+Coprobacillus_unclassified
+Lachnospiraceae_bacterium_1_1_57FAA
+Bacteroides_caccae
+Gemella_morbillorum
+Adlercreutzia_equolifaciens
+Roseburia_intestinalis
+Clostridium_hathewayi
+0.28
+0.25
+-0.19
+0.18
+-0.18
+-0.18
+0.17
+0.17
+-0.17
+0.16
+Zeller Top 10 ����
+-0.2
+-0.1
+0.0
+0.1
+0.2
+L2 ϵ����CLR �ռ䣩
+Parabacteroides_unclassified
+Alistipes_finegoldii
+Coprococcus_sp_ART55_1
+Bifidobacterium_bifidum
+Eubacterium_ventriosum
+Butyrivibrio_crossotus
+Butyrivibrio_unclassified
+Desulfovibrio_desulfuricans
+Akkermansia_muciniphila
+Ruminococcus_sp_5_1_39BFAA
+-0.20
+-0.19
+-0.18
+0.17
+-0.16
+-0.16
+0.15
+-0.15
+-0.14
+-0.13
+metahit Top 10 ����
+-0.5
+0.0
+0.5
+L2 ϵ����CLR �ռ䣩
+Pseudoflavonifractor_capillosus
+Coriobacteriaceae_bacterium_phI
+Porphyromonas_asaccharolytica
+Streptococcus_vestibularis
+Bacteroides_ovatus
+Olsenella_unclassified
+Pantoea_unclassified
+Haemophilus_parainfluenzae
+Butyricicoccus_pullicaecorum
+Klebsiella_pneumoniae
+-0.54
+-0.44
+0.44
+-0.42
+0.41
+-0.40
+0.39
+-0.39
+0.37
+-0.36
+Chatelier Top 10 ����
+L2 ��ģ��ϵ�� Top ��������ɫ��ʾ������������ɫ��ʾ�������٣�
+--- page 0: 66 blocks ---
+  (174,302)-(194,312): -0.2
+  (224,302)-(239,312): 0.0
+  (272,302)-(287,312): 0.2
+  (184,315)-(279,325): L2 ϵ����CLR �ռ䣩
+  (35,56)-(130,63): Peptostreptococcus_stomatis
+  (49,80)-(130,87): Fusobacterium_nucleatum
+  (7,105)-(130,112): Lachnospiraceae_bacterium_1_4_56FAA
+  (39,129)-(130,136): Coprobacillus_unclassified
+  (7,153)-(130,160): Lachnospiraceae_bacterium_1_1_57FAA
+  (67,177)-(130,184): Bacteroides_caccae
+  (63,202)-(130,209): Gemella_morbillorum
+  (35,226)-(130,233): Adlercreutzia_equolifaciens
+  (53,250)-(130,257): Roseburia_intestinalis
+  (56,274)-(130,281): Clostridium_hathewayi
+  (302,56)-(315,63): 0.28
+  (293,80)-(306,87): 0.25
+  (167,105)-(183,111): -0.19
+  (278,129)-(291,135): 0.18
+  (168,153)-(185,160): -0.18
+  (169,177)-(186,184): -0.18
+  (276,202)-(289,208): 0.17
+  (275,226)-(288,232): 0.17
+  (172,250)-(188,257): -0.17
+  (273,274)-(286,281): 0.16
+  (177,25)-(285,37): Zeller Top 10 ����
+  (452,302)-(472,312): -0.2
+  (487,302)-(507,312): -0.1
+  (524,302)-(539,312): 0.0
+  (559,302)-(574,312): 0.1
+  (594,302)-(609,312): 0.2
+  (484,315)-(579,325): L2 ϵ����CLR �ռ䣩
+  (332,56)-(430,63): Parabacteroides_unclassified
+  (360,80)-(430,87): Alistipes_finegoldii
+  (353,105)-(430,112): Coprococcus_sp_ART55_1
+  (350,129)-(430,136): Bifidobacterium_bifidum
+  (353,153)-(430,160): Eubacterium_ventriosum
+  (353,177)-(430,184): Butyrivibrio_crossotus
+  (343,202)-(430,209): Butyrivibrio_unclassified
+  (336,226)-(430,233): Desulfovibrio_desulfuricans
+  (350,250)-(430,257): Akkermansia_muciniphila
+  (339,274)-(430,281): Ruminococcus_sp_5_1_39BFAA
+  (444,56)-(461,63): -0.20
+  (447,80)-(463,87): -0.19
+  (451,105)-(468,111): -0.18
+  (593,129)-(606,135): 0.17
+  (457,153)-(473,160): -0.16
+  (458,177)-(474,184): -0.16
+  (588,202)-(601,208): 0.15
+  (461,226)-(477,232): -0.15
+  (463,250)-(479,257): -0.14
+  (467,274)-(483,281): -0.13
+  (475,25)-(589,37): metahit Top 10 ����
+  (770,302)-(790,312): -0.5
+  (835,302)-(850,312): 0.0
+  (898,302)-(913,312): 0.5
+  (795,315)-(890,325): L2 ϵ����CLR �ռ䣩
+  (633,56)-(741,63): Pseudoflavonifractor_capillosus
+  (633,80)-(741,87): Coriobacteriaceae_bacterium_phI
+  (640,105)-(741,112): Porphyromonas_asaccharolytica
+  (650,129)-(741,136): Streptococcus_vestibularis
+  (678,153)-(741,160): Bacteroides_ovatus
+  (664,177)-(741,184): Olsenella_unclassified
+  (671,202)-(741,209): Pantoea_unclassified
+  (650,226)-(741,233): Haemophilus_parainfluenzae
+  (643,250)-(741,257): Butyricicoccus_pullicaecorum
+  (668,274)-(741,281): Klebsiella_pneumoniae
+  (755,56)-(771,63): -0.54
+  (768,80)-(784,87): -0.44
+  (901,105)-(914,111): 0.44
+  (771,129)-(787,135): -0.42
+  (898,153)-(911,160): 0.41
+  (772,177)-(789,184): -0.40
+  (895,202)-(908,208): 0.39
+  (775,226)-(791,232): -0.39
+  (893,250)-(906,257): 0.37
+  (778,274)-(794,281): -0.36
+  (780,25)-(906,37): Chatelier Top 10 ����
+  (292,7)-(652,19): L2 ��ģ��ϵ�� Top ��������ɫ��ʾ������������ɫ��ʾ�������٣�
+
+===== PDF: S1-threshold-analysis.pdf =====
+pages: 1
+--- page 0 text ---
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+��ֵ
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+ָ��ֵ
+Youden J 0.504
+Zeller
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+��ֵ
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+ָ��ֵ
+Youden J 0.652
+metahit
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+��ֵ
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+ָ��ֵ
+Youden J 0.274
+Chatelier
+L2 ��ģ����ֵ-ָ�����ߣ�5 �� CV OOF������Ϊ Youden ������ֵ��
+ACC
+F1(������)
+Recall(������)
+Specificity
+--- page 0: 31 blocks ---
+  (35,266)-(50,276): 0.0
+  (83,266)-(98,276): 0.2
+  (131,266)-(146,276): 0.4
+  (178,266)-(193,276): 0.6
+  (226,266)-(241,276): 0.8
+  (274,266)-(289,276): 1.0
+  (152,279)-(172,289): ��ֵ
+  (20,256)-(35,266): 0.0
+  (20,211)-(35,221): 0.2
+  (20,167)-(35,177): 0.4
+  (20,123)-(35,133): 0.6
+  (20,78)-(35,88): 0.8
+  (20,34)-(35,44): 1.0
+  (6,135)-(16,165): ָ��ֵ
+  (72,205)-(79,254): Youden J 0.504
+  (144,23)-(180,35): Zeller
+  (323,266)-(338,276): 0.0
+  (371,266)-(386,276): 0.2
+  (419,266)-(434,276): 0.4
+  (466,266)-(481,276): 0.6
+  (514,266)-(529,276): 0.8
+  (562,266)-(577,276): 1.0
+  (440,279)-(460,289): ��ֵ
+  (308,256)-(323,266): 0.0
+  (308,211)-(323,221): 0.2
+  (308,167)-(323,177): 0.4
+  (308,123)-(323,133): 0.6
+  (308,78)-(323,88): 0.8
+  (308,34)-(323,44): 1.0
+  (294,135)-(304,165): ָ��ֵ
+  (343,205)-(350,254): Youden J 0.652
+  (429,23)-(471,35): metahit
+  (611,266)-(626,276): 0.0
+  (659,266)-(674,276): 0.2
+  (707,266)-(722,276): 0.4
+  (754,266)-(769,276): 0.6
+  (802,266)-(817,276): 0.8
+  (850,266)-(865,276): 1.0
+  (728,279)-(748,289): ��ֵ
+  (596,256)-(611,266): 0.0
+  (596,211)-(611,221): 0.2
+  (596,167)-(611,177): 0.4
+  (596,123)-(611,133): 0.6
+  (596,78)-(611,88): 0.8
+  (596,34)-(611,44): 1.0
+  (582,135)-(592,165): ָ��ֵ
+  (772,205)-(779,254): Youden J 0.274
+  (711,23)-(765,35): Chatelier
+  (253,7)-(619,19): L2 ��ģ����ֵ-ָ�����ߣ�5 �� CV OOF������Ϊ Youden ������ֵ��
+  (314,274)-(326,282): ACC
+  (364,274)-(404,282): F1(������)
+  (443,274)-(499,282): Recall(������)
+  (537,274)-(581,282): Specificity

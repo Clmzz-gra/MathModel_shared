@@ -1,0 +1,120 @@
+% ============================================================
+% 论文写作素材（独立文件，供队友在阶段 4 写作取材）
+% 对应内部报告 iter-02-sub2-biomarker.tex
+% VERSION: 2026-08-21-2.4修订（P1-P4 复核与 pkl 一致；P5 填表述库参考+AI 标注编号）
+% 溯源/字段路径/可写禁写句一律放本文件，正文不承载。
+% 本文件不进入终稿正文，仅作为写作交接材料。
+% ============================================================
+\documentclass{article}   % 独立编译用；若并入报告正文编译则删除本行与 \begin{document} 等
+\usepackage[UTF8]{ctex}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\begin{document}
+\section{论文写作素材（供队友写作）—— 对应内部报告 iter-02-sub2-biomarker.tex}
+
+\subsection{章节映射}
+
+本报告对应终稿第 \textbf{第 N 章}「\textbf{特征选择与生物标志物}」。建议终稿结构如下：
+\begin{itemize}
+  \item §X.1 建模与求解 \quad $\leftarrow$ 本报告 §2 数据 + §3 方法
+  \item §X.2 结果分析 \quad $\leftarrow$ 本报告 §4 稳定标志物 + §5 两路信号 + §6 共现 + §7 跨疾病
+\end{itemize}
+
+\subsection{故事线（按段给出主题句与写作要点）}
+
+\begin{enumerate}
+  \item 【章首段】本问任务转述 + 输入规模 + 关键约束。要点：从 1331 个高维稀疏物种特征中为
+        三病（CRC/IBD/Obesity）独立筛出稳定、可解释、生物合理的生物标志物，供 S1 分类器使用。
+        样本数 CRC 121 / IBD 110 / Obesity 253，过滤后特征 264。表述库参考：一、问题分析段·引入问题·必要性论证式（表述库 L111-112）。
+  内嵌摘录：「因此，面对良莠不齐的402家供货商，考虑到优先保障企业生产以及库存的稳定性，有必要对供货商的供货能力进行筛选，挑选出那些供货能力强，供货稳定性高的供货商建立长期稳定的合作关系，以确保供货链的上游既高效又稳定。」（2021C1 问题分析）
+  \item 【建模段】为什么用该方法 + 模型结构。要点：近全零过滤（零值占比>95\% 剔除，1331→264）→
+        CLR 前置（$\delta=6.5\times10^{-6}$）→ Lasso+bootstrap 稳定性选择（$\tau=0.5$，$B=100$，
+        $C=0.1$）→ 两路信号（Fisher 存在/缺失 + Wilcoxon 非零丰度，BH-FDR m=1331）→ 共现分析 →
+        VIP 佐证（RF 佐证层退化不可用）。表述库参考：二、模型引入段·过渡到模型·方法比较式（表述库 L141-142）。内嵌摘录：「考虑到本问题的目标是剔除季节性等因素以分析成本加成定价和销量的关联，应当采用可解释性更强的模型，因此本文使用带有外生回归项的 Prophet 模型刻画决定市场需求的主要因素。」（2023C235 模型建立）
+  \item 【结果段】核心数字 + 对比结论。要点：CRC/IBD 各 4 个高置信稳定标志物（CRC 3/4 命中已知
+        标志物），Obesity 20 个但 FDR 全不显著；主导信号几乎全为存在/缺失（Obesity 18/20
+        presence + 2 abundance）；三病标志物完全疾病特异
+        （Jaccard 全 0）。表述库参考：三、结果与分析段·量化结论+规律解释式（表述库 L196-197）。内嵌摘录：「根据上述算法，用python求解得出至少选择27家供应商供应原材料才可能满足生产的需求……大多数周的采购成本在均值附近，占比79.2%，说明订购方案安排较稳定。」（2021C2 结果分析）
+\end{enumerate}
+
+\textbf{表述库内嵌规则}：队友无法直接访问 parts 文件（暂不共享），生成者必须把本问用到的 parts
+原文摘录直接粘进「内嵌摘录」字段并注明出处（论文ID-章节），确保队友不依赖 parts 文件即可写作。
+
+\subsection{关键数字表}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{llll}
+\toprule
+数字 & 含义 & 来源（pkl 字段路径） & 论文引用位置 \\
+\midrule
+1331 & 过滤前特征数 & S2-preprocessed.pkl meta.n\_features\_before & §2.2 \\
+264 & 过滤后特征数 & S2-preprocessed.pkl meta.n\_features\_after & §2.2 \\
+121 / 110 / 253 & 三病样本数 & S2-preprocessed.pkl per\_disease.<D>.n\_samples & §2.1 \\
+48/73, 25/85, 164/89 & 三病患病/健康数 & S2-preprocessed.pkl per\_disease.<D>.n\_pos / n\_neg & §2.1 \\
+0.5 & 稳定特征入选频率阈值 $\tau$ & S2-results.pkl meta.tau & §3.1 \\
+100 / 50 & 全量/CV 折内 bootstrap 轮数 $B$ & S2-results.pkl meta.B\_full / B\_cv & §3.1 \\
+0.1 & Lasso 逆正则化参数 $C$ & S2-results.pkl meta.C\_lasso & §3.1 \\
+$6.5\times10^{-6}$ & CLR 伪计数 $\delta$ & S2-results.pkl meta.clr\_delta & §2.3 \\
+1331 & FDR 多重比较规模 m & S2-results.pkl meta.fdr\_m & §3.2 \\
+1.5 & VIP 阈值 & S2-results.pkl meta.vip\_threshold & §3.4 \\
+4 / 4 / 20 & 三病稳定特征数 & S2-results.pkl per\_disease.<D>.n\_stable & §4.1 \\
+4/1, 6/1, 0/0 & 三病 Fisher/Wilcoxon 显著数 & S2-results.pkl per\_disease.<D>.n\_fisher\_sig / n\_wilcoxon\_sig & §5.1 \\
+0.99/0.94/0.62/0.52 & CRC 稳定特征全量频率 & S2-results.pkl per\_disease.CRC.stable\_features[].frequency & §4.1 \\
+0.96/0.72/0.39/0.30 & CRC 稳定特征 CV 折内频率 & S2-results.pkl per\_disease.CRC.stable\_features[].cv\_frequency & §4.3 \\
+$1.24\times10^{-5}$ 等 & CRC 标志物 Fisher FDR & S2-results.pkl per\_disease.CRC.biomarker\_table[].fisher\_fdr & §4.2 \\
+0.81/0.75/0.55/0.53 & IBD 稳定特征全量频率 & S2-results.pkl per\_disease.IBD.stable\_features[].frequency & §4.1 \\
+0.68/0.66/0.48/0.32 & IBD 稳定特征 CV 折内频率 & S2-results.pkl per\_disease.IBD.stable\_features[].cv\_frequency & §4.3 \\
+0.89/0.84/0.72 & Obesity Top3 频率 & S2-results.pkl per\_disease.Obesity.stable\_features[].frequency & §4.1 \\
+presence（Obesity 18/20 + 2 abundance） & 三病入选标志物主导信号 & S2-results.pkl per\_disease.<D>.two\_path\_signals[].dominant\_signal & §5.1 \\
+4 / 6 / 24 & 三病共现显著边数 & S2-results.pkl per\_disease.<D>.cooccurrence.cooccurrence\_edges & §6.2 \\
+0.76 / $8.8\times10^{-7}$ / 12.9 & CRC 最强共现对 Spearman/Fisher p/OR & S2-results.pkl per\_disease.CRC.cooccurrence.cooccurrence\_edges[0] & §6.2 \\
+0.0 / 0.0 / 0.0 & 三病两两 Jaccard 重叠 & S2-results.pkl cross\_disease.jaccard\_matrix & §7.1 \\
+0 & 共同标志物数 & S2-results.pkl cross\_disease.common\_biomarkers & §7.2 \\
+4 / 4 / 20 & 三病疾病特异标志物数 & S2-results.pkl cross\_disease.disease\_specific.<D> & §7.2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{图表清单}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+图/表 & 论文用途 & 建议插入位置 \\
+\midrule
+每病稳定特征频率条形图 & 展示三病入选标志物频率分布 & §4.1 结果段 \\
+每病标志物汇总表 & 标志物频率/显著性/方向/已知对照 & §4.2 结果段 \\
+两路信号统计表 & Fisher/Wilcoxon FDR + 主导信号 & §5.1 结果段 \\
+共现 Spearman 相关热图 & 入选标志物两两相关结构 & §6.1 结果段 \\
+共现/互斥网络 & 协同/互斥对可视化 & §6.2 结果段 \\
+佐证一致性图 & VIP vs Alpha Top-N 排名 & §3.4 方法段 \\
+跨疾病 Jaccard 重叠热图 & 三病标志物重叠 & §7.1 结果段 \\
+共同/疾病特异性标志物表 & 疾病特异标志物清单 & §7.2 结果段 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{口径与局限（可写句 / 禁写句）}
+
+\begin{itemize}
+  \item 可写：CRC 与 IBD 在严格正则（$C=0.1$）下各得 4 个高置信稳定标志物，其中 CRC 3/4 命中
+        已知标志物（Peptostreptococcus\_stomatis、Fusobacterium\_nucleatum、Porphyromonas\_somerae），
+        方法有效性锚点强验证；三病入选标志物主导信号几乎全为存在/缺失（CRC/IBD 全 presence，
+        Obesity 18/20 presence + 2 abundance）；三病标志物完全疾病特异。
+  \item 禁止写：不得写「CRC 4 个标志物全部命中已知标志物」（pkl 中 Clostridium\_hathewayi
+        known=False，仅 3/4 命中，见待裁定项）；不得写「Obesity 标志物显著」（FDR 全 >0.05，
+        弱信号）；不得写「共现为因果/协同机制」（仅二阶初探，见报告 §6.3 边界声明）。
+  \item 口径声明：CRC/IBD 入选数低于 Top 10--20 目标，源于 $C=0.1$ 保守口径（待裁定项 T1）；
+        VIP 仅用于排名一致性，不产出独立 VIP 选择集（待裁定项 T2）；small\_adenoma 归健康
+        沿 S1 主口径①（S1 已选定，S2 跟随，T3 已销项）；\textbf{RF 佐证层退化不可用}（rf\_importance 全部
+        $\sim10^{-17}$，不引用 RF 数字，仅以 VIP 作独立复现佐证，待裁定项）。
+\end{itemize}
+
+\subsection{AI 工具使用标注}
+
+本子问题涉及 AI 使用记录：[AI-2-1]（S2 特征选择与生物标志物：建模、实现、结果分析均由 AI 辅助完成，见 `.trae/ai-markers/` 与 `handoff-S2-report-agent.md` §5），供阶段 3.3 AI 使用声明引用。
+
+\end{document}

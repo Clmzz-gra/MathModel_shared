@@ -1,0 +1,4 @@
+﻿disease,domain_auc,cross_auc,decay,dominant_cause
+CRC,0.781111,0.567352,-0.213760,disease_specific
+IBD,0.858824,0.588235,-0.270588,disease_specific
+Obesity,0.663786,0.525349,-0.138436,label_semantic

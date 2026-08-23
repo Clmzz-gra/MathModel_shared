@@ -1,0 +1,437 @@
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{array}
+
+% STATUS: draft
+% LAST_MODIFIED: 2026-08-21
+
+\title{S2 数学推导：特征选择与生物标志物（近全零过滤 + CLR + Lasso 稳定性选择 + 两路信号 + 共现分析）}
+\author{MathModel 建模小组}
+\date{2026-08-21}
+
+\begin{document}
+
+\maketitle
+
+\section{问题形式化}
+
+S2 子问题为三个宏基因组数据集（Zeller CRC / metahit IBD / Chatelier Obesity）各自从 $p_0=1331$ 个高维稀疏物种特征中，筛出每病\textbf{稳定、可解释、生物合理}的 Top 10$\sim$20 生物标志物，并解读其丰度/存在趋势与跨疾病关系。本文件给出完整数学推导：数据预处理（近全零过滤 + CLR）、主方法（Lasso 稀疏 Logistic + bootstrap 稳定性选择）、两路信号检验（Fisher 精确检验 + Wilcoxon 秩和 + BH-FDR）、共现分析（协同效应初探）、佐证层（RF permutation importance + PLS-DA VIP），以及数学自检、假设检验计划与防泄漏说明。
+
+\subsection{符号表（先定义再使用）}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+符号 & 读法 & 定义 \\
+\midrule
+$n$ & 「样本数」 & 某数据集的样本总数（Zeller=121 / metahit=110 / Chatelier=253） \\
+$p_0$ & 「原始特征数」 & 物种级特征列数 $=1331$ \\
+$p$ & 「过滤后特征数」 & 近全零过滤后 $=264$ \\
+$x_{ij}$ & 「第 $i$ 个样本第 $j$ 个物种的相对丰度」 & 原始丰度矩阵 $\mathbf{X}\in\mathbb{R}^{n\times p}$ 的元素 \\
+$y_i$ & 「第 $i$ 个样本的真实标签」 & 患病 $=1$ / 健康 $=0$ \\
+$z_j$ & 「第 $j$ 个特征的零值占比」 & $z_j=\frac{1}{n}\sum_{i=1}^{n}\mathbf{1}[x_{ij}=0]$ \\
+$\delta$ & 「德尔塔，零值替换值」 & 零值乘法替换伪值 $=6.5\times10^{-6}$（与 S1 一致） \\
+$g_i$ & 「第 $i$ 个样本的几何均值」 & $g_i=\big(\prod_{j=1}^{p}x_{ij}\big)^{1/p}$ \\
+$\mathrm{clr}(x_{ij})$ & 「CLR 变换后的值」 & 中心化对数比，见 \S\ref{sec:clr} \\
+$\beta_0$ & 「beta 零，截距」 & Lasso 稀疏 Logistic 的截距项 \\
+$\beta_j$ & 「beta 下标 j」 & 第 $j$ 个特征的回归系数 \\
+$\lambda$ & 「拉姆达，L1 正则强度」 & 越大越稀疏 \\
+$C$ & 「C，正则强度的倒数」 & sklearn 参数，$C=1/\lambda$ \\
+$\sigma(z)$ & 「sigmoid 函数」 & $\sigma(z)=\frac{1}{1+e^{-z}}$，把实数压到 $(0,1)$ \\
+$\hat{p}_i$ & 「p 帽 下标 i」 & 第 $i$ 个样本的预测患病概率 $\hat{p}_i=\sigma(\beta_0+\mathbf{x}_i^{\top}\beta)$ \\
+$B$ & 「B，bootstrap 轮数」 & 分层重抽样轮数 $=50\sim100$ \\
+$\hat{\pi}_j$ & 「pi 帽 下标 j」 & 第 $j$ 个特征在 $B$ 轮中被选中的频率 \\
+$\tau$ & 「套，稳定阈值」 & 稳定特征入选频率阈值 $=0.5$（范围 $0.5\sim0.6$） \\
+$\mathbf{1}[\cdot]$ & 「指示函数」 & 条件成立取 1，否则取 0 \\
+$\binom{n}{k}$ & 「n 选 k」 & 组合数，从 $n$ 个中选 $k$ 个的方案数 \\
+$m$ & 「m，多重比较规模」 & BH-FDR 校正的特征总数 $=1331$（全特征规模） \\
+$\alpha$ & 「阿尔法，显著性水平」 & FDR 控制水平 $=0.05$ \\
+$U$ & 「U，秩和统计量」 & Wilcoxon 秩和检验统计量 \\
+$R_1$ & 「R 下标 1，病组秩和」 & 病组样本在合并排序中的秩之和 \\
+$\rho$ & 「柔，Spearman 相关系数」 & 两特征非零丰度的秩相关 \\
+$\mathrm{VIP}_j$ & 「VIP 下标 j」 & 第 $j$ 个特征的 PLS-DA 变量投影重要性 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{数据预处理数学}
+\label{sec:preprocess}
+
+\subsection{近全零过滤（零值占比阈值）}
+\label{sec:filter}
+
+\textbf{定义（零值占比）}：对第 $j$ 个物种特征，其零值占比 $z_j$ 定义为该列中取值为 0 的样本比例：
+
+\begin{equation}
+  z_j = \frac{1}{n}\sum_{i=1}^{n}\mathbf{1}[x_{ij}=0],
+  \qquad
+  \mathbf{1}[\cdot]\ \text{读作「指示函数，条件成立取 1，否则取 0」}.
+  \label{eq:zerofrac}
+\end{equation}
+
+\textbf{过滤规则}：保留特征 $j$ 当且仅当 $z_j \le 0.95$（读作「零值占比不超过 95\%」）：
+
+\begin{equation}
+  \mathcal{J}_{\text{keep}} = \big\{ j \in \{1,\dots,p_0\} : z_j \le 0.95 \big\},
+  \qquad
+  p = |\mathcal{J}_{\text{keep}}| = 264.
+  \label{eq:filter}
+\end{equation}
+
+- 因为：原始 1331 维中 1067 个特征（$z_j>0.95$）几乎不含判别信息——它们只在极少数样本中非零，无法稳定估计系数，且会稀释 L1/RF 的信号（F3 实证：这些特征 Wilcoxon 选中率 $\approx 0$）。剔除后 $1331\to264$ 维，降 80\% 维度几乎不损失信息，与 S1 过滤口径统一（三病并集同一 264 特征集）。
+- **直觉类比**：像问卷里「几乎所有人都不填」的题目，留着只会让统计表变长、结论变糊，删掉反而更干净。
+
+\subsection{CLR 变换（成分数据 $\to$ 可比较的相对量）}
+\label{sec:clr}
+
+\textbf{动机（为什么需要 CLR）}：宏基因组相对丰度是\textbf{定和成分数据}——每行丰度之和 $\approx 100$。定和约束使丰度之间「此消彼长」，在原始丰度上产生\textbf{伪相关}。Lasso 是线性模型，对特征间线性相关敏感，直接输入原始丰度会得到被定和约束扭曲的系数。CLR 变换把「加起来等于 100 的成分」翻译成「每个物种相对本样本平均水平的对数比」，解除定和偏相关（F6 实证：CLR 使 23$\sim$34\% 特征对相关方向翻转，不 CLR 则 Lasso 建立在伪相关上）。
+
+\textbf{第一步：零值乘法替换}（因为 92\% 零值无法取对数，需先给一个「低于检出限」的伪值）：
+
+\begin{equation}
+  x_{ij} \leftarrow \max(x_{ij},\ \delta),
+  \qquad
+  \delta = 0.65 \times 10^{-5} = 6.5\times10^{-6}.
+  \label{eq:zeroreplace}
+\end{equation}
+
+- 读法：每个丰度值若为 0，替换为 $\delta$；$\delta$ 等于检出限（$10^{-5}$）的 0.65 倍。
+- 因为：$\delta$ 取「检出限的 0.65 倍」是 AL-007 标准乘法替换，既保证可对数化，又远小于任何真实非零丰度（不污染信号）。乘法替换（而非加伪计数 $+1$）保持「零值远小于非零值」的序关系，且对 $\delta$ 的微小扰动不敏感。**与 S1 口径一致（$\delta=6.5\times10^{-6}$），避免口径分裂**。
+
+\textbf{第二步：逐行几何均值中心化}：
+
+\begin{equation}
+  \mathrm{clr}(x_{ij}) = \ln x_{ij} - \frac{1}{p}\sum_{k=1}^{p}\ln x_{ik}
+  = \ln\frac{x_{ij}}{g_i},
+  \qquad
+  g_i = \Big(\prod_{k=1}^{p} x_{ik}\Big)^{1/p}.
+  \label{eq:clr}
+\end{equation}
+
+- 读法：先对每个丰度取自然对数，再减去该样本所有物种对数丰度的平均值（即减去几何均值 $g_i$ 的对数）。
+- 因为：定和约束 $\sum_j x_{ij} = \text{const}$ 在原始空间是一条「单纯形」（simplex，读作「单纯形，和为常数的点集」）；取对数后减去行内均值等价于把每个样本投影到「对数空间过原点的超平面」上，使变换后的向量满足 $\sum_j \mathrm{clr}(x_{ij})=0$，从而解除定和约束引入的伪相关。
+- **多视角（几何）**：原始丰度点落在 $p$ 维单纯形上（自由度只有 $p-1$）；CLR 把它们平移到对数空间的一个 $(p-1)$ 维超平面上，让每个坐标独立变化，不再互相牵制。
+- **直觉类比**：把「全班 100 分总分里各科分数」换成「各科相对全班平均分的偏离」，才能公平比较不同学生——CLR 就是把「加起来等于 100 的成分」翻译成「相对多少」。
+
+\section{主方法：Lasso 稀疏 Logistic + bootstrap 稳定性选择}
+
+\subsection{Lasso 稀疏 Logistic 目标函数}
+\label{sec:lasso}
+
+对每个疾病，在训练折上最小化：
+
+\begin{equation}
+  \min_{\beta_0,\beta}\
+  \underbrace{-\frac{1}{n}\sum_{i=1}^{n}\Big[y_i\ln\hat{p}_i + (1-y_i)\ln(1-\hat{p}_i)\Big]}_{\text{负对数似然（拟合误差）}}
+  + \underbrace{\lambda\sum_{j=1}^{p}|\beta_j|}_{\text{L1 惩罚（稀疏化）}},
+  \qquad
+  \hat{p}_i = \sigma(\beta_0 + \mathbf{x}_i^{\top}\beta).
+  \label{eq:lasso}
+\end{equation}
+
+- 读法：损失 $=$ 所有样本的交叉熵均值 $+$ 正则强度 $\lambda$ 乘以系数绝对值之和。
+- 因为：第一项是交叉熵（二分类负对数似然，衡量预测概率与真实标签的差距）；第二项 $\lambda\sum_j|\beta_j|$ 是 L1 惩罚，$\lambda$ 越大，越多的 $\beta_j$ 被压成\textbf{恰好为 0}——这就是「自动选特征」的代数来源（少而精）。
+- **多视角（代数）**：L1 惩罚的绝对值在 $\beta_j=0$ 处不可导，其「尖角」使最优解倾向于落在坐标轴上（很多系数恰好为 0），等价于「自动把不重要特征系数压成 0」；而 L2 惩罚（S1 用）是光滑的，只收缩不置零。
+- **直觉类比**：L1 惩罚像「预算约束」——每保留一个非零系数都要「交税」，模型只肯为真正有用的特征「花钱」，其余系数被压成 0。
+- **sklearn 对应**：`LogisticRegression(penalty='l1', solver='liblinear' 或 'saga', C=...)`，其中 $C=1/\lambda$（$C$ 越大正则越弱）。V6 用 $C=0.1$，正式实现给 $C$ 范围（如 $0.01\sim1.0$）。
+
+\subsection{bootstrap 出现频率}
+\label{sec:bootstrap}
+
+第 $j$ 个特征在 $B$ 轮 bootstrap 中的出现频率：
+
+\begin{equation}
+  \hat{\pi}_j = \frac{1}{B}\sum_{b=1}^{B}\mathbf{1}\{\hat{\beta}_j^{(b)}\neq 0\},
+  \qquad
+  \hat{\beta}_j^{(b)}\ \text{是第}\ b\ \text{轮 bootstrap 重抽样上拟合的 Lasso 系数}.
+  \label{eq:freq}
+\end{equation}
+
+\textbf{稳定特征集}：
+
+\begin{equation}
+  \hat{S}_\tau = \big\{ j : \hat{\pi}_j \geq \tau \big\},
+  \qquad
+  \tau = 0.5\ (\text{范围}\ 0.5\sim0.6).
+  \label{eq:stable}
+\end{equation}
+
+- 读法：第 $j$ 个特征在 $B$ 轮重抽样中被 Lasso 选中（系数非零）的比例 $\hat{\pi}_j$；$\hat{\pi}_j$ 达到阈值 $\tau$ 的特征进入稳定特征集 $\hat{S}_\tau$。
+- 因为：小样本（$n=110\sim253$）对 $p=264$ 特征，单次 Lasso 选择几乎不可复现（选择方差巨大）；bootstrap 聚合频率用重抽样估计「选择结果的不确定性」，把「一次选择的方差」显式量化——频率低 $=$ 方差大 $=$ 不可信。
+- 因为（$\tau$ 从 0.8 下调到 0.5$\sim$0.6）：频率 $\geq 0.8$ 只有 2 特征/病（F7），选不出 Top 10$\sim$20；频率分布连续长尾，$0.5\sim0.6$ 是稳定簇与噪声分界。
+- **直觉类比**：像选「靠谱员工」——不看一次面试（单次 Lasso），看多次面试（bootstrap）里每次都表现好的人（高频率）。一次发挥好可能是运气，每次都稳才是实力。
+
+\subsection{分层 CV 折内选择（防泄漏形式化）}
+\label{sec:leakage}
+
+\textbf{核心原则}：特征选择（过滤、CLR、Lasso）必须在\textbf{训练折内}做，不得在全量数据上先选特征再交叉验证。
+
+设分层 $K$ 折交叉验证将数据划分为 $K$ 个折 $\mathcal{F}_1,\dots,\mathcal{F}_K$（每折类别比例与全量一致）。对第 $k$ 折：
+
+\begin{equation}
+  \mathcal{D}_{\text{train}}^{(k)} = \bigcup_{l\neq k}\mathcal{F}_l,
+  \qquad
+  \mathcal{D}_{\text{test}}^{(k)} = \mathcal{F}_k.
+  \label{eq:fold}
+\end{equation}
+
+特征选择 $\hat{S}^{(k)}$ 仅在 $\mathcal{D}_{\text{train}}^{(k)}$ 上计算（过滤阈值、CLR 几何均值、Lasso 系数均来自训练折），测试折 $\mathcal{D}_{\text{test}}^{(k)}$ 只用于评估，不参与任何选择步骤。
+
+- 因为：若「先在全量数据上选特征，再对选出的特征做 CV」，测试折的信息已通过特征选择步骤\textbf{泄漏}进模型，会系统性高估性能（选出的特征「碰巧」在测试折上表现好）。折内选择保证测试折对模型完全「不可见」。
+- **诚实标注**：报告同时给「全量选择结果（乐观）」与「CV 内稳定频率（诚实）」两套数字——全量选择是「在训练数据上自评」的乐观上界，CV 内频率才是可泛化的诚实估计。
+
+\section{两路信号检验（对稳定特征做，非再选）}
+\label{sec:twopath}
+
+对入选的稳定特征做差异丰度检验，\textbf{拆两路信号}（F2 实证：零值占比差与 AUC 相关 $0.86\sim0.89$，显著高于非零丰度差 $0.63\sim0.67$，故「差异」主要来自「在不在」而非「多不多」）：
+
+\subsection{(a) 存在/缺失信号：Fisher 精确检验（超几何）}
+\label{sec:fisher}
+
+对稳定特征构建 2$\times$2 列联表：
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+ & 患病 & 健康 & 行和 \\
+\midrule
+存在（非零） & $a$ & $b$ & $a+b$ \\
+缺失（零） & $c$ & $d$ & $c+d$ \\
+\midrule
+列和 & $a+c$ & $b+d$ & $n$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+在「存在与否与疾病无关」的原假设下，观测到该表的概率服从超几何分布：
+
+\begin{equation}
+  P = \frac{\binom{a+b}{a}\binom{c+d}{c}}{\binom{n}{a+c}},
+  \qquad
+  \text{Fisher 精确检验的}\ p\ \text{值} = \sum_{\text{更极端的表}} P.
+  \label{eq:fisher}
+\end{equation}
+
+- 读法：固定四个边缘和（行和、列和）不变，观测到「患病组恰好有 $a$ 个存在」的概率由超几何分布给出；p 值 $=$ 所有「比当前表更极端」的表概率之和。
+- 因为：92\% 的物种在大多数样本里「根本没出现」，所以「在不在」才是主要信号（F2）；Fisher 精确检验不依赖大样本近似，对小样本（$n=110\sim253$）与稀疏列联表（存在/缺失高度不平衡）精确有效。
+- **直觉类比**：像问「这个店有没有卖某商品」——先问「在不在」，再问「卖得多不多」，是两个不同问题。
+
+\subsection{(b) 非零丰度信号：Wilcoxon 秩和检验}
+\label{sec:wilcoxon}
+
+对稳定特征，在\textbf{非零样本}上比较病组与健组的 CLR 丰度分布。将两组样本合并排序取秩，检验统计量 $U$ 基于秩和：
+
+\begin{equation}
+  U = \min(U_1, U_2),
+  \qquad
+  U_1 = n_1 n_2 + \frac{n_1(n_1+1)}{2} - R_1,
+  \qquad
+  U_2 = n_1 n_2 - U_1.
+  \label{eq:wilcoxon}
+\end{equation}
+
+其中 $n_1,n_2$ 为两组样本数，$R_1$ 为病组秩和。$U$ 越小，两组分布差异越大。
+
+- 读法：把两组样本的丰度混在一起从小到大排队，看「病组的人是不是都挤在队尾（或队头）」——挤得越极端，$U$ 越小，差异越显著。
+- 因为：CLR 丰度不满足正态性（零值主导、长尾），用秩而非原始值做检验，对分布形状稳健，不依赖正态假设。
+- **直觉类比**：像比较「两个班的身高」——不直接比平均身高（可能被几个极端值带偏），而是把所有人混排后看「A 班的人是不是都排在前面」。
+
+\subsection{BH-FDR 多重比较校正（$m=1331$ 全特征规模）}
+\label{sec:fdr}
+
+对 $m$ 个特征同时检验（\textbf{$m=1331$ 全特征规模}，2026-08-21 人类裁定：医疗宁可严格不可虚报——检验仅对过滤后 264 特征执行，但多重比较按全 1331 计数，取最严格口径），将 p 值升序排列 $p_{(1)}\le p_{(2)}\le\dots\le p_{(m)}$，找最大的 $k$ 使：
+
+\begin{equation}
+  p_{(k)} \le \frac{k}{m}\alpha,
+  \qquad
+  \alpha = 0.05.
+  \label{eq:fdr}
+\end{equation}
+
+拒绝 $H_{(1)},\dots,H_{(k)}$（即前 $k$ 个最小 p 值对应的特征判为显著）。
+
+- 读法：把 $m$ 个 p 值从小到大排，从最小的开始逐个检查「第 $k$ 小的 p 值是否不超过 $\frac{k}{m}\times 0.05$」，找到满足条件的最大 $k$，前 $k$ 个判显著。
+- 因为：同时检验 1331 个特征，纯靠运气也会有几十个「碰巧显著」；BH-FDR 控制「误报显著」的比例（假发现率），防止「检验太多必然有几个假阳性」。相比 Bonferroni（$p\le\alpha/m$），BH-FDR 在控制假阳性的同时保留更多真阳性，是生物标志物筛选的标准口径。
+- **直觉类比**：像「同时考 1331 门课，总有几门碰巧及格」——FDR 不是要求每门都严格，而是控制「及格的人里混进多少碰运气的」。
+
+\section{共现分析（协同效应初探，2026-08-21 人类裁定新增）}
+\label{sec:cooccur}
+
+\textbf{动机}：Lasso 是线性可加模型，只建模每个微生物的\textbf{独立边际效应}，显式建模不了「微生物间协同/共现效应」（如 A、B 菌同时出现才致病）。小样本（$110\sim253$）下全特征两两交互（$\binom{1331}{2}\approx 88$ 万对）不可行，故以入选稳定标志物（10$\sim$20 个）为限做\textbf{二阶初探}，把「没做交互」从潜在扣分点转为「做了初探并声明边界」。
+
+\subsection{两两 Spearman 相关（非零样本上，CLR 后丰度）}
+\label{sec:spearman}
+
+对每病入选的稳定标志物两两计算 Spearman 秩相关系数：
+
+\begin{equation}
+  \rho_{jk} = 1 - \frac{6\sum_{i=1}^{n'} d_i^2}{n'(n'^2-1)},
+  \qquad
+  d_i = \mathrm{rank}(x_{ij}) - \mathrm{rank}(x_{ik}),
+  \label{eq:spearman}
+\end{equation}
+
+其中 $n'$ 为两特征均非零的样本数，$d_i$ 为第 $i$ 个样本上两特征秩之差。$\rho_{jk}>0$ 表共现（正相关），$\rho_{jk}<0$ 表互斥（负相关）。
+
+- 读法：把两个物种在每个样本的丰度分别换成「排名」，再算排名的相关；正相关 $=$ 一起出现，负相关 $=$ 互相排斥。
+- 因为：丰度非正态、零值主导，用秩相关（Spearman）而非 Pearson 线性相关，对单调关系与离群值稳健。
+
+\subsection{共现/互斥检验（Fisher 精确检验，存在/缺失口径）}
+\label{sec:cooccur-fisher}
+
+对相关显著的标志物对，用 Fisher 精确检验验证「同现/互斥是否超出独立期望」。对标志物对 $(j,k)$ 构建 2$\times$2 列联表（两者均存在 / 仅 $j$ 存在 / 仅 $k$ 存在 / 均缺失），在「两物种存在与否相互独立」的原假设下，观测表概率服从超几何分布（同 \eqref{eq:fisher}），p 值 $=$ 更极端表概率之和。显著共现（$p<\alpha$ 且同现多于期望）记为「cooccur」边，显著互斥记为「exclude」边，输出共现网络（节点 $=$ 标志物，边 $=$ 显著共现/互斥，标方向）。
+
+\subsection{边界声明（报告必须含）}
+\label{sec:boundary}
+
+「小样本下仅对入选标志物做二阶探索，无法全特征交互建模；标志物筛选主口径仍为边际信号（生物标志物研究标准口径）。」——共现分析是\textbf{协同效应的初探证据}，放讨论节，不改变主选择口径。
+
+\section{佐证层（独立复现，不参与主选择）}
+\label{sec:corroborate}
+
+\subsection{RF permutation importance（免 CLR）}
+\label{sec:rf}
+
+树模型直接跑原始丰度（免 CLR，F6 豁免），多轮取平均。第 $j$ 个特征的 permutation importance：
+
+\begin{equation}
+  \mathrm{PI}_j = \mathrm{AUC}_{\text{orig}} - \frac{1}{R}\sum_{r=1}^{R}\mathrm{AUC}_{\text{perm},j}^{(r)},
+  \label{eq:permimp}
+\end{equation}
+
+其中 $\mathrm{AUC}_{\text{orig}}$ 为原始数据上的 AUC，$\mathrm{AUC}_{\text{perm},j}^{(r)}$ 为第 $r$ 次随机打乱第 $j$ 列后重算的 AUC，$R$ 为打乱轮数。$\mathrm{PI}_j$ 越大，第 $j$ 个特征越重要。
+
+- 读法：把第 $j$ 个物种的丰度随机打乱（破坏它与标签的关联），看模型性能掉多少——掉得越多，这个物种越重要。
+- 因为：permutation importance 直接度量「打乱该特征后性能损失」，比 Gini 杂质重要性更少受高基数/连续特征偏好的影响（Gini 重要性有偏，偏好高基数特征）。
+
+\subsection{PLS-DA VIP（阈值上调 $>1.5$）}
+\label{sec:vip}
+
+第 $j$ 个特征的变量投影重要性（Variable Importance in Projection）：
+
+\begin{equation}
+  \mathrm{VIP}_j = \sqrt{\,p\cdot\frac{\sum_{a=1}^{A}\mathrm{SS}_a\cdot\big(w_{ja}/\lVert w_a\rVert\big)^2}{\sum_{a=1}^{A}\mathrm{SS}_a}\,},
+  \qquad
+  \mathrm{SS}_a = \sum_{i=1}^{n}\big(t_{ia}\big)^2,
+  \label{eq:vip}
+\end{equation}
+
+其中 $A$ 为 PLS 成分数，$w_{ja}$ 为第 $a$ 个成分中第 $j$ 个特征的权重，$t_{ia}$ 为第 $i$ 个样本在第 $a$ 个成分上的得分。$\mathrm{VIP}_j>1$ 通常视为重要，本问\textbf{上调阈值至 $>1.5$}（F8 实证：VIP$>1$ 选中 40$\sim$55\%，失去筛选意义）。
+
+- 读法：VIP 衡量第 $j$ 个特征对「解释标签方差」的累计贡献，$>1$ 是常用阈值，本问因特征过多上调到 $>1.5$ 收紧筛选。
+- 因为：VIP$>1$ 在 264 维上选中 40$\sim$55\% 特征，几乎等于没筛；上调到 $>1.5$（或按分位数）才恢复筛选意义。
+
+\subsection{佐证一致性}
+\label{sec:consistency}
+
+RF 与 VIP 的 Top-N 排名与 Alpha 稳定特征（Lasso bootstrap）的\textbf{Top-N 排名一致性}作为稳健性佐证（Spearman 秩相关或交集比例）。三者独立复现同一批标志物，说明选择结果不是单一方法的偶然。
+
+\section{参数物理意义与取值范围汇总}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{2.6cm}p{5.4cm}p{5.4cm}}
+\toprule
+参数 & 物理意义 & 取值范围 \\
+\midrule
+$x_{ij}$ & 物种相对丰度 & $[0,100]$（定和 $\approx 100$） \\
+$\delta$ & 零值乘法替换伪值 & $6.5\times10^{-6}$（固定，与 S1 一致） \\
+$z_j$ 阈值 & 近全零过滤阈值 & $0.95$（固定，人类裁定） \\
+$p$ & 过滤后特征维数 & $264$（$p_0=1331$ 过滤后） \\
+$\lambda$ & L1 正则强度 & $>0$，$C=1/\lambda$，$C\in\{0.01,\dots,1.0\}$ \\
+$B$ & bootstrap 轮数 & $50\sim100$（建议） \\
+$\tau$ & 稳定特征频率阈值 & $0.5$（范围 $0.5\sim0.6$，B 类验证定） \\
+$m$ & BH-FDR 多重比较规模 & $1331$（全特征，人类裁定） \\
+$\alpha$ & FDR 显著性水平 & $0.05$（固定） \\
+$\mathrm{VIP}$ 阈值 & PLS-DA 重要性阈值 & $1.5$（或分位数，B 类验证定） \\
+$K$ & 分层 CV 折数 & $5$（固定） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{简化假设与合理性论证}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{3.2cm}p{5.2cm}p{5.0cm}}
+\toprule
+假设 & 内容 & 合理性 \\
+\midrule
+H1 成分数据 & 1331 维相对丰度是定和成分数据，线性模型前必须 CLR & F6 实证 CLR 使 23$\sim$34\% 特征对相关方向翻转 \\
+H2 近全零过滤 & $z_j>0.95$ 特征剔除（$1331\to264$） & F3 实证这些特征 Wilcoxon 选中率 $\approx 0$，不损失判别信息 \\
+H3 两路信号 & 判别信号以「存在/缺失」为主、「丰度高低」为辅 & F2 实证零值占比差 corr(AUC) $0.86\sim0.89$ $>$ 非零丰度差 $0.63\sim0.67$ \\
+H4 低冗余 & 特征间冗余度低，Lasso 共线组内任选不严重 & F4 实证高相关边仅 21$\sim$30 条/300 特征，最大簇规模 4 \\
+H5 频率可分 & bootstrap 频率能区分「稳定特征」与「噪声长尾」 & F7 实证频率分布连续长尾，$0.5\sim0.6$ 是分界 \\
+H6 已知锚点 & 已知标志物（Fusobacterium nucleatum 等）是方法有效性锚点 & F5 实证 CRC 稳定特征含 Fusobacterium\_nucleatum（频率 0.82） \\
+H7 独立建模 & 三数据集各自独立执行，不跨病混合 & 批次效应强，混合会引入伪信号 \\
+H8 边际主口径 & 标志物筛选主口径为边际信号，交互仅二阶初探 & 小样本下全特征交互（88 万对）不可行 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{数学自检}
+
+\begin{enumerate}
+  \item \textbf{回归方程自变量不含因变量}：Lasso 稀疏 Logistic 的自变量是 $\mathrm{clr}(\mathbf{x}_i)$（由原始丰度经 CLR 变换得到），不含 $y_i$ 本身或其代数变换；$y_i$ 仅出现在损失函数 \eqref{eq:lasso} 的交叉熵项中作为监督信号。无「用因变量预测因变量」的循环。
+  \item \textbf{量纲一致}：CLR 变换后特征无量纲（对数比）；线性得分 $\beta_0+\mathbf{x}_i^{\top}\beta$ 无量纲；sigmoid 输出概率无量纲；损失 \eqref{eq:lasso} 第一项为交叉熵（无量纲），第二项 $\lambda\sum_j|\beta_j|$ 无量纲（$\lambda$ 与 $\beta$ 均无量纲）。Fisher p 值、Wilcoxon $U$、FDR、Spearman $\rho$、VIP 均为无量纲统计量。全链路量纲自洽。
+  \item \textbf{含 $\ln$ 变换的原始 $\to$ 变换 $\to$ 注意点表}：
+  \begin{center}
+  \footnotesize
+  \begin{tabular}{p{3.4cm}p{4.6cm}p{5.4cm}}
+  \toprule
+  原始量 & 变换 & 注意点 \\
+  \midrule
+  $x_{ij}=0$（零丰度） & $\max(x_{ij},\delta)$ 替换为 $\delta$ & 必须先替换再取对数，否则 $\ln 0$ 无定义 \\
+  $x_{ij}>0$（非零丰度） & $\ln x_{ij}$ & 丰度 $<1$ 时对数为负，属正常（相对量） \\
+  行内对数均值 & $\frac{1}{p}\sum_k\ln x_{ik}$ & 中心化后 $\sum_j\mathrm{clr}(x_{ij})=0$，每行和恒为 0 \\
+  $\mathrm{clr}(x_{ij})$ & 直接进 Lasso & 系数 $\beta_j$ 解释为「对数几率变化」，非原始丰度效应 \\
+  \bottomrule
+  \end{tabular}
+  \end{center}
+  \item \textbf{CLR 中心化正确性}：\eqref{eq:clr} 中 $\sum_j\mathrm{clr}(x_{ij})=\sum_j\ln x_{ij}-p\cdot\frac{1}{p}\sum_k\ln x_{ik}=0$，恒成立，解除定和约束。
+  \item \textbf{超几何概率归一性}：\eqref{eq:fisher} 中 $\sum_{a}\frac{\binom{a+b}{a}\binom{c+d}{c}}{\binom{n}{a+c}}=1$（Vandermonde 恒等式），所有可能表的概率之和为 1，p 值定义合法。
+  \item \textbf{Wilcoxon $U$ 对称性}：\eqref{eq:wilcoxon} 中 $U_1+U_2=n_1n_2$，$U=\min(U_1,U_2)$ 对两组对称，检验无方向偏置。
+  \item \textbf{防泄漏}：特征选择（过滤/CLR/Lasso）均在训练折内（\S\ref{sec:leakage}），测试折不参与任何选择步骤，无信息泄漏。
+\end{enumerate}
+
+\section{直觉解释（无公式）}
+
+特征选择要回答：从一千多种肠道细菌里，找出「哪些细菌最能区分病人和健康人」。菌群数据有两个麻烦——一是绝大多数细菌在绝大多数样本里「根本没出现」（一千多种里只有两百多种常见），二是每种细菌的丰度加起来是固定的（像一张 100 分的卷子），一种多了别的必然显得少。我们先把几乎从不出现的细菌删掉（问卷里没人填的题），再把每种细菌的丰度换成「它比这个样本平均水平高多少还是低多少」（像把各科分数换成相对全班平均分的偏离），这样不同样本之间才公平可比。
+
+然后让一个「会自己挑重点」的模型（Lasso）学「哪些细菌偏高偏低对应生病」，它每保留一个细菌都要「交税」，所以只肯为真正有用的细菌花钱。但小样本下挑一次不可靠，于是我们「面试很多次」（bootstrap 重抽样），只留下「每次都表现好」的细菌（高频率），这就是稳定标志物。最后分两个问题问每个标志物：「这个细菌在不在」（存在/缺失）和「在的话多不多」（丰度），因为数据显示「在不在」才是主要信号。同时检验一千多个细菌，纯靠运气也会有几个「碰巧显著」，所以用 FDR 控制「误报」的比例，宁可严格、不可虚报。
+
+\section{假设检验计划}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{p{3.4cm}p{5.0cm}p{5.0cm}}
+\toprule
+核心假设 & 检验方法 & 结果/状态 \\
+\midrule
+H1 成分数据需 CLR & 对比 CLR 前后特征对相关方向（F6） & 已证：23$\sim$34\% 特征对方向翻转 \\
+H2 近全零过滤 & 过滤前后判别信息对比（$1331$ vs $264$ 维） & 已证：V2 近全零特征 Wilcoxon 选中率 $\approx 0$ \\
+H3 两路信号 & 零值占比差 vs 非零丰度差与 AUC 相关（F2） & 已证：$0.86\sim0.89$ $>$ $0.63\sim0.67$ \\
+H4 低冗余 & 高相关边计数 + 最大簇规模（F4） & 已证：21$\sim$30 条/300 特征，最大簇 4 \\
+H5 频率可分 & 频率分布拐点（F7） & 已证：连续长尾，$0.5\sim0.6$ 分界 \\
+H6 已知锚点 & 稳定特征含已知标志物（F5） & 已证：Fusobacterium\_nucleatum 频率 0.82 \\
+H7 独立建模 & 三数据集分别建模 & 已证：设计保证 \\
+H8 边际主口径 & 共现分析初探 + 边界声明 & 待验证：2.1 实现后输出共现网络 \\
+B1 $\tau$ 敏感性 & $\tau=0.4/0.5/0.6/0.7$ 入选数曲线 & 待验证：B 类验证回填精确 $\tau$ \\
+B2 VIP 阈值 & VIP 分布分位数 & 待验证：B 类验证回填精确阈值 \\
+B3 佐证一致性 & RF/VIP 与 Lasso 的 Top-N 排名一致性 & 待验证：2.1 实现后计算 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{方案讲解收束（math-explainer 6 条）}
+
+- \textbf{解决什么}：从 1331 个高维稀疏物种特征中，筛出每病稳定、可解释、生物合理的 Top 10$\sim$20 生物标志物，并解读其丰度/存在趋势与跨疾病关系。
+- \textbf{怎么做}：近全零过滤（$1331\to264$）$\to$ CLR 解除定和偏相关 $\to$ Lasso+bootstrap 稳定性选择（$\tau=0.5$）$\to$ Fisher+Wilcoxon 两路信号 + BH-FDR（$m=1331$）$\to$ 共现分析初探 $\to$ RF/VIP 独立复现佐证。
+- \textbf{为什么}：高维稀疏小样本下，特征选择结果本身方差巨大且零值主导语义，必须用「多轮聚合稳定化 + 信号拆分」去伪存真，否则「最影响」标志物很可能是过拟合的假象。
+
+\textbf{防跳跃（可能需展开的概念点）}：BH-FDR 与 Bonferroni 的区别（为什么 1331 次比较用 FDR 而非更严格的 Bonferroni）；CLR 的伪计数处理（乘法替换 vs 加法替换，不同 $\delta$ 对结果的影响）；分层 CV 折内选择 vs 全量选择的泄漏差异（为什么「先全量选特征再 CV」会高估性能）；Lasso 的 $\lambda$（$C$）选择（bootstrap 内每折的 $C$ 如何定，$\lambda$ 对入选频率的影响）；RF 重要性有偏的机制（为什么 permutation importance 比 Gini 更优）。如需后续展开可追问。
+
+\end{document}

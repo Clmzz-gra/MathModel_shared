@@ -1,0 +1,614 @@
+== S1-roc-curve.pdf | pages=1 | n_draw=67 | colors=5
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 假阳性率（FPR）
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 真阳性率（TPR）
+   T: Zeller（n=121）
+   T: L2(CLR) AUC 0.791
+   T: RF AUC 0.845
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 假阳性率（FPR）
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 真阳性率（TPR）
+   T: metahit（n=110）
+   T: L2(CLR) AUC 0.887
+   T: RF AUC 0.904
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.6, 0.6, 0.6), (0.9, 0.62, 0.0), (1.0, 1.0, 1.0)]
+== S1-performance-compare.pdf | pages=1 | n_draw=47 | colors=6
+   T: Zeller
+   T: metahit
+   T: Chatelier
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: AUC
+   T: 0.791
+   T: 0.887
+   T: 0.650
+   T: 0.845
+   T: 0.904
+   T: 0.660
+   T: 0.758
+   T: 0.815
+   T: 0.639
+   T: Dummy 多数类基线 0.5
+   T: 三数据集 L2 / RF / 单特征基线 AUC 对比（5 折 CV，误差棒表示折间标准差）
+   T: L2(CLR)
+   T: RF
+   T: 单特征基线
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.2, 0.2, 0.2), (0.6, 0.6, 0.6), (0.9, 0.62, 0.0), (1.0, 1.0, 1.0)]
+== S1-adenoma-sensitivity.pdf | pages=1 | n_draw=28 | colors=6
+   T: ①归健康
+   T: (n=121)
+   T: ②归病变
+   T: (n=121)
+   T: ③剔除
+   T: (n=95)
+   T: ④单开一类
+   T: (n=95)
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: AUC
+   T: 0.791
+   T: 0.611
+   T: 0.802
+   T: 0.802
+   T: 0.845
+   T: 0.651
+   T: 0.867
+   T: 0.867
+   T: 主口径
+   T: Zeller small_adenoma 四口径敏感性对比（L2 与 RF，阴影为主口径）
+   T: L2(CLR)
+   T: RF
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.2, 0.2, 0.2), (0.34, 0.71, 0.91), (0.9, 0.62, 0.0), (1.0, 1.0, 1.0)]
+== S1-feature-importance.pdf | pages=1 | n_draw=120 | colors=5
+   T: -0.2
+   T: 0.0
+   T: 0.2
+   T: L2 系数（CLR 空间）
+   T: Peptostreptococcus_stomatis
+   T: Fusobacterium_nucleatum
+   T: Lachnospiraceae_bacterium_1_4_56FAA
+   T: Coprobacillus_unclassified
+   T: Lachnospiraceae_bacterium_1_1_57FAA
+   T: Bacteroides_caccae
+   T: Gemella_morbillorum
+   T: Adlercreutzia_equolifaciens
+   T: Roseburia_intestinalis
+   T: Clostridium_hathewayi
+   T: 0.28
+   T: 0.25
+   T: -0.19
+   T: 0.18
+   T: -0.18
+   T: -0.18
+   T: 0.17
+   T: 0.17
+   T: -0.17
+   T: 0.16
+   T: Zeller Top 10 特征
+   T: -0.2
+   T: -0.1
+   T: 0.0
+   T: 0.1
+   T: 0.2
+   T: L2 系数（CLR 空间）
+   T: Parabacteroides_unclassified
+   T: Alistipes_finegoldii
+   T: Coprococcus_sp_ART55_1
+   T: Bifidobacterium_bifidum
+   T: Eubacterium_ventriosum
+   T: Butyrivibrio_crossotus
+   T: Butyrivibrio_unclassified
+   T: Desulfovibrio_desulfuricans
+   T: Akkermansia_muciniphila
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.2, 0.2, 0.2), (0.84, 0.37, 0.0), (1.0, 1.0, 1.0)]
+== S1-threshold-analysis.pdf | pages=1 | n_draw=71 | colors=7
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 阈值
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 指标值
+   T: Youden J 0.504
+   T: Zeller
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 阈值
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 指标值
+   T: Youden J 0.652
+   T: metahit
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 阈值
+   T: 0.0
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.0, 0.62, 0.45), (0.6, 0.6, 0.6), (0.84, 0.37, 0.0), (0.9, 0.62, 0.0), (1.0, 1.0, 1.0)]
+== S2-stable-frequency.pdf | pages=1 | n_draw=140 | colors=8
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 全量 bootstrap 频率 ̂πj
+   T: Peptostreptococcus_stomatis
+   T: Fusobacterium_nucleatum
+   T: Porphyromonas_somerae
+   T: Clostridium_hathewayi
+   T: 0.99
+   T: 0.94
+   T: 0.62
+   T: 0.52
+   T: 结直肠癌 CRC（4 个稳定标志物）
+   T: CV 折内频率（诚实）
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 全量 bootstrap 频率 ̂πj
+   T: Alistipes_finegoldii
+   T: Bifidobacterium_bifidum
+   T: Akkermansia_muciniphila
+   T: Eubacterium_ventriosum
+   T: 0.81
+   T: 0.75
+   T: 0.55
+   T: 0.53
+   T: 炎症性肠病 IBD（4 个稳定标志物）
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 全量 bootstrap 频率 ̂πj
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.0, 0.62, 0.45), (0.6, 0.6, 0.6), (0.84, 0.15, 0.16), (0.84, 0.37, 0.0), (0.87, 0.87, 0.87), (1.0, 1.0, 1.0)]
+== S2-tau-sensitivity.pdf | pages=1 | n_draw=65 | colors=7
+   T: 0.4
+   T: 0.5
+   T: 0.6
+   T: 0.7
+   T: 入选频率阈值 τ
+   T: 0
+   T: 5
+   T: 10
+   T: 15
+   T: 20
+   T: 25
+   T: 30
+   T: 35
+   T: 入选稳定特征数
+   T: 6
+   T: 4
+   T: 3
+   T: 2
+   T: 6
+   T: 4
+   T: 2
+   T: 2
+   T: 32
+   T: 20
+   T: 9
+   T: 3
+   T: τ=0.5 入选口径
+   T: τ 敏感性：入选稳定特征数随阈值变化
+   T: 结直肠癌 CRC
+   T: 炎症性肠病 IBD
+   T: 肥胖症 Obesity
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.0, 0.62, 0.45), (0.84, 0.15, 0.16), (0.84, 0.37, 0.0), (0.87, 0.87, 0.87), (1.0, 1.0, 1.0)]
+== S2-cooccurrence-heatmap.pdf | pages=1 | n_draw=38 | colors=2
+   T: Peptostreptococcus_stomatis
+   T: Fusobacterium_nucleatum
+   T: Porphyromonas_somerae
+   T: Clostridium_hathewayi
+   T: Peptostreptococcus_stomatis
+   T: Fusobacterium_nucleatum
+   T: Porphyromonas_somerae
+   T: Clostridium_hathewayi
+   T: 1.00
+   T: 0.76
+   T: 0.83
+   T: -0.10
+   T: 0.76
+   T: 1.00
+   T: N/A
+   T: 0.35
+   T: 0.83
+   T: N/A
+   T: 1.00
+   T: -0.43
+   T: -0.10
+   T: 0.35
+   T: -0.43
+   T: 1.00
+   T: 结直肠癌 CRC 入选标志物 Spearman 相关
+   T: Alistipes_finegoldii
+   T: Bifidobacterium_bifidum
+   T: Akkermansia_muciniphila
+   T: Eubacterium_ventriosum
+   T: Alistipes_finegoldii
+   T: Bifidobacterium_bifidum
+   T: Akkermansia_muciniphila
+   T: Eubacterium_ventriosum
+   T: 1.00
+   T: 0.28
+   T: 0.17
+   T: 0.20
+   T: 0.28
+   T: 1.00
+   T: -0.47
+   C: [(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)]
+== S2-cross-disease.pdf | pages=1 | n_draw=20 | colors=2
+   T: CRC
+   T: IBD
+   T: Obesity
+   T: 两两 Jaccard 均为 0；对角线 1 表示自重叠
+   T: CRC
+   T: IBD
+   T: Obesity
+   T: 1.00
+   T: 0.00
+   T: 0.00
+   T: 0.00
+   T: 1.00
+   T: 0.00
+   T: 0.00
+   T: 0.00
+   T: 1.00
+   T: 三病稳定标志物 Jaccard 重叠矩阵
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: Jaccard 系数
+   C: [(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)]
+== S3-strategy-compare.pdf | pages=1 | n_draw=45 | colors=9
+   T: C1
+   T: (测试 CRC)
+   T: C2
+   T: (测试 IBD)
+   T: C3
+   T: (测试 Obesity)
+   T: 均值
+   T: 0.0
+   T: 0.1
+   T: 0.2
+   T: 0.3
+   T: 0.4
+   T: 0.5
+   T: 0.6
+   T: 0.7
+   T: 0.8
+   T: AUC
+   T: 0.567
+   T: 0.588
+   T: 0.525
+   T: 0.560
+   T: 0.542
+   T: 0.608
+   T: 0.522
+   T: 0.557
+   T: 0.362
+   T: 0.486
+   T: 0.544
+   T: 0.464
+   T: 0.414
+   T: 0.526
+   T: 0.600
+   T: 0.513
+   T: 0.567
+   T: 0.588
+   T: 0.525
+   T: 0.560
+   T: 随机 0.5
+   T: 可用线 0.65
+   T: 五种策略配置在 3 个 LODO 组合及其均值下的 AUC 对比
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.0, 0.62, 0.45), (0.34, 0.71, 0.91), (0.6, 0.6, 0.6), (0.84, 0.15, 0.16), (0.84, 0.37, 0.0), (0.9, 0.62, 0.0), (1.0, 1.0, 1.0)]
+== S3-decay-attribution.pdf | pages=1 | n_draw=31 | colors=6
+   T: CRC
+   T: IBD
+   T: Obesity
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: AUC（越高越好）
+   T: 域内 0.781
+   T: 跨病 0.567
+   T: 衰减 -0.214
+   T: 疾病特异信号
+   T: 域内 0.859
+   T: 跨病 0.588
+   T: 衰减 -0.271
+   T: 疾病特异信号（最强）
+   T: 域内 0.664
+   T: 跨病 0.525
+   T: 衰减 -0.138
+   T: 标签语义漂移
+   T: 随机基准 0.5
+   T: 蓝点=同疾病五折CV；橙点=留一疾病（LODO）；灰色连接段=泛化损失
+   T: 跨疾病泛化造成的 AUC 下降：域内性能与 LODO 性能对照
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.6, 0.6, 0.6), (0.9, 0.62, 0.0), (0.96, 0.96, 0.96), (1.0, 1.0, 1.0)]
+== S3-migration-direction.pdf | pages=1 | n_draw=11 | colors=5
+   T: -400
+   T: -200
+   T: 0
+   T: 200
+   T: 400
+   T: 标志物数量
+   T: 387 一致（51.2%）
+   T: 369 翻转（48.8%）
+   T: 0
+   T: 符号检验 p=0.536（未显著偏离随机）
+   T: 共享标志物跨疾病方向一致性（387 vs 369，接近随机）
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.6, 0.6, 0.6), (0.9, 0.62, 0.0), (1.0, 1.0, 1.0)]
+== S3-threshold-drift.pdf | pages=1 | n_draw=30 | colors=7
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: 预测患病概率
+   T: 0.0
+   T: 0.5
+   T: 1.0
+   T: 1.5
+   T: 2.0
+   T: 2.5
+   T: 3.0
+   T: KDE 密度
+   T: Youden 阈值 τ*=0.9205
+   T: 96.0% 测试样本在此侧
+   T: （被判健康）
+   T: 训练正类 ~0.98
+   T: 测试正类 ~0.19
+   T: 标签语义漂移：患病基线 0.316→0.648（Δ=+0.332），但正类预测概率 0.98→0.19（塌缩）→ 灵敏度 0.024
+   T: C3 阈值漂移：测试概率分布左移导致阈值失准
+   T: 训练集（CRC+IBD）
+   T: 测试集（Obesity）
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.6, 0.6, 0.6), (0.84, 0.15, 0.16), (0.9, 0.62, 0.0), (0.96, 0.96, 0.96), (1.0, 1.0, 1.0)]
+== chart-sample-composition.pdf | pages=1 | n_draw=31 | colors=6
+   T: CRC
+   T: IBD
+   T: Obesity
+   T: 0
+   T: 50
+   T: 100
+   T: 150
+   T: 200
+   T: 250
+   T: 样本数
+   T: 48
+   T: 25
+   T: 164
+   T: 47
+   T: 85
+   T: 89
+   T: 26
+   T: CRC 患病率 39.7%
+   T: metahit 22.7%
+   T: Obesity 患病率 64.8%
+   T: 三数据集样本构成与类别分布
+   T: 患病
+   T: 健康
+   T: 腺瘤
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.0, 0.62, 0.45), (0.69, 0.69, 0.69), (0.84, 0.37, 0.0), (1.0, 1.0, 1.0)]
+== chart-zero-sparsity.pdf | pages=1 | n_draw=52 | colors=7
+   T: 0.0
+   T: 0.1
+   T: 0.2
+   T: 0.3
+   T: 0.4
+   T: 0.5
+   T: 0.6
+   T: 0.7
+   T: 0.8
+   T: 0.9
+   T: 1.0
+   T: 特征零值占比
+   T: 0
+   T: 200
+   T: 400
+   T: 600
+   T: 800
+   T: 1000
+   T: 特征数
+   T: 0.95 阈值
+   T: 1067 个特征零值占比 >95%（剔除）
+   T: 保留 264 特征
+   T: 物种特征零值稀疏性（近全零过滤动机）
+   C: [(0.0, 0.0, 0.0), (0.0, 0.62, 0.45), (0.07, 0.07, 0.07), (0.3, 0.45, 0.69), (0.69, 0.69, 0.69), (0.84, 0.37, 0.0), (1.0, 1.0, 1.0)]
+== chart-abundance-distribution.pdf | pages=1 | n_draw=74 | colors=6
+   T: -5
+   T: -4
+   T: -3
+   T: -2
+   T: -1
+   T: 0
+   T: 1
+   T: 2
+   T: log10 丰度
+   T: 0
+   T: 500
+   T: 1000
+   T: 1500
+   T: 2000
+   T: 非零值计数
+   T: 中位数 0.0776 (log10≈-1.11)
+   T: 范围 1.0e-05 ~ 79.96
+   T: （跨约 7 个数量级）
+   T: 非零丰度分布（对数坐标，CLR 动机）
+   C: [(0.0, 0.0, 0.0), (0.3, 0.45, 0.69), (0.69, 0.69, 0.69), (0.8, 0.8, 0.8), (0.84, 0.37, 0.0), (1.0, 1.0, 1.0)]
+== chart-batch-effect.pdf | pages=1 | n_draw=1030 | colors=6
+   T: -5
+   T: 0
+   T: 5
+   T: 10
+   T: 15
+   T: PC1（8.8% 方差）
+   T: -10
+   T: -5
+   T: 0
+   T: 5
+   T: 10
+   T: PC2（5.3% 方差）
+   T: PCA
+   T: -30
+   T: -20
+   T: -10
+   T: 0
+   T: 10
+   T: 20
+   T: 30
+   T: t-SNE 维度 1
+   T: -30
+   T: -20
+   T: -10
+   T: 0
+   T: 10
+   T: 20
+   T: 30
+   T: t-SNE 维度 2
+   T: t-SNE
+   T: 三数据集特征空间分布（PCA/t-SNE，批次效应提示）
+   T: 标注：三数据集样本在特征空间无清晰分离 → 存在批次/分布差异
+   T: 支撑：绝对 AUC 不可跨数据集独立比，只比相对基线增益
+   T: 结直肠癌 CRC
+   T: 炎症性肠病 IBD
+   T: 肥胖症 Obesity
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.0, 0.62, 0.45), (0.69, 0.69, 0.69), (0.9, 0.62, 0.0), (1.0, 1.0, 1.0)]
+== chart-known-biomarker-presence.pdf | pages=1 | n_draw=38 | colors=5
+   T: F. nucleatum (CRC)
+   T: P. stomatis (CRC)
+   T: P. somerae (CRC)
+   T: B. bifidum (IBD)
+   T: A. muciniphila (IBD)
+   T: B. fragilis (Obesity)
+   T: 已知微生物标志物（括号内为所属患病数据集）
+   T: 0
+   T: 20
+   T: 40
+   T: 60
+   T: 80
+   T: 100
+   T: 存在率（%）
+   T: 42%
+   T: 56%
+   T: 21%
+   T: 56%
+   T: 28%
+   T: 59%
+   T: 3%
+   T: 8%
+   T: 0%
+   T: 12%
+   T: 78%
+   T: 45%
+   T: 已知微生物标志物在患病/健康组的存在率对比
+   T: 患病组
+   T: 健康组
+   T: 标注：CRC 患病组 F. nucleatum 41.7% vs 健康组 2.7%、P. stomatis 56.2% vs 8.2%，明显更高；IBD 患病组 A. mucini
+   C: [(0.0, 0.0, 0.0), (0.0, 0.45, 0.7), (0.69, 0.69, 0.69), (0.9, 0.62, 0.0), (1.0, 1.0, 1.0)]
+== pca-scree.pdf | pages=1 | n_draw=96 | colors=6
+   T: 0
+   T: 5
+   T: 10
+   T: 15
+   T: 20
+   T: 25
+   T: 30
+   T: 0.0
+   T: 0.2
+   T: 0.4
+   T: 0.6
+   T: 0.8
+   T: 1.0
+   T: PCA
+   T: 30
+   T: Kaiser
+   T: ( =1)
+   C: [(0.0, 0.0, 0.0), (0.12, 0.47, 0.71), (0.69, 0.69, 0.69), (0.8, 0.8, 0.8), (1.0, 0.0, 0.0), (1.0, 1.0, 1.0)]
+== cluster-tsne.pdf | pages=1 | n_draw=515 | colors=5
+   T: -30
+   T: -20
+   T: -10
+   T: 0
+   T: 10
+   T: 20
+   T: 30
+   T: t-SNE 1
+   T: -30
+   T: -20
+   T: -10
+   T: 0
+   T: 10
+   T: 20
+   T: 30
+   T: t-SNE 2
+   T: t-SNE
+   T: K-Means++ K=2
+   T: 0 (470)
+   T: 1 (14)
+   C: [(0.0, 0.0, 0.0), (0.12, 0.47, 0.71), (0.8, 0.8, 0.8), (1.0, 0.5, 0.05), (1.0, 1.0, 1.0)]

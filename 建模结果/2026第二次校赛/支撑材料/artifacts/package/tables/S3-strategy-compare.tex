@@ -1,0 +1,18 @@
+% S3 四策略对比表（数据源：outputs/data/S3-results.pkl，strategy_compare）
+% 数字取自 pkl 实测，seed=42，budget_limited=False
+\begin{table}[htbp]
+\centering
+\caption{S3 四策略跨疾病预测 3 组合 AUC 对比（leave-one-disease-out）}
+\label{tab:s3-strategy-compare}
+\begin{tabular}{lcccc}
+\toprule
+策略 & C1(CRC) & C2(IBD) & C3(Obesity) & 3 组合均值 \\
+\midrule
+A 直接迁移（L2+CLR 物种级 264） & 0.5674 & 0.5882 & 0.5253 & \textbf{0.5603} \\
+B 共享标志物（252 特征交集重训） & 0.5417 & 0.6080 & 0.5218 & 0.5572 \\
+C 属级聚合（g\_\_ 求和 106 特征） & 0.3616 & 0.4861 & 0.5440 & 0.4639 \\
+C 门级聚合（p\_\_ 求和 11 特征） & 0.4141 & 0.5261 & 0.5999 & 0.5134 \\
+D 部署校正（Platt 校准，base=A） & 0.5674 & 0.5882 & 0.5253 & 0.5603 \\
+\bottomrule
+\end{tabular}
+\end{table}

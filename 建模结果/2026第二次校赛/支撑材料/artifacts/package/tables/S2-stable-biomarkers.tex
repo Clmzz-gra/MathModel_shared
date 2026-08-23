@@ -1,0 +1,31 @@
+% S2 稳定标志物表（每病）— 数据源 outputs/data/S2-results.pkl
+% 口径：τ=0.5，全量 bootstrap 频率（B=100），BH-FDR m=1331
+% 注：q>1 一律判「不显著」；Obesity 全部 fisher_q>0.05（低可信度）
+\begin{table}[htbp]
+\centering
+\caption{S2 每病稳定标志物（Lasso+bootstrap 稳定性选择，$\tau=0.5$）}
+\label{tab:s2-stable-biomarkers}
+\small
+\begin{tabular}{llcccccl}
+\toprule
+疾病 & 标志物 & 频率 & CV频率 & Fisher $q$ & 方向 & 已知 & 主导信号 \\
+\midrule
+CRC & Peptostreptococcus\_stomatis & 0.99 & 0.96 & $1.24\times10^{-5}$ & up & $\checkmark$ & presence \\
+CRC & Fusobacterium\_nucleatum & 0.94 & 0.72 & $3.94\times10^{-5}$ & up & $\checkmark$ & presence \\
+CRC & Porphyromonas\_somerae & 0.62 & 0.39 & $1.72\times10^{-2}$ & up & $\checkmark$ & presence \\
+CRC & Clostridium\_hathewayi & 0.52 & 0.30 & 0.60 & up & --- & presence \\
+\midrule
+IBD & Alistipes\_finegoldii & 0.81 & 0.68 & $6.75\times10^{-3}$ & down & --- & presence \\
+IBD & Bifidobacterium\_bifidum & 0.75 & 0.66 & $6.75\times10^{-3}$ & up & $\checkmark$ & presence \\
+IBD & Akkermansia\_muciniphila & 0.55 & 0.48 & $6.75\times10^{-3}$ & down & --- & presence \\
+IBD & Eubacterium\_ventriosum & 0.53 & 0.32 & $3.98\times10^{-2}$ & down & --- & presence \\
+\midrule
+Obesity & Ruminococcus\_flavefaciens & 0.89 & 0.73 & 0.24 & down & --- & presence \\
+Obesity & Pseudoflavonifractor\_capillosus & 0.84 & 0.53 & $>0.05$ & down & --- & presence \\
+Obesity & Rothia\_mucilaginosa & 0.72 & 0.51 & 0.24 & down & --- & presence \\
+Obesity & $\cdots$（共 20 个，全部 $q>0.05$） & & & & & & \\
+\bottomrule
+\end{tabular}
+\par\footnotesize
+注：Obesity 20 个稳定标志物 0 个 FDR 显著（弱信号，低可信度）；方向 up=患病组 CLR 丰度均值更高，down=更低；presence=存在/缺失信号主导。
+\end{table}

@@ -1,0 +1,359 @@
+% STATUS: done
+% LAST_MODIFIED: 2026-08-21
+% 内部报告：S2 特征选择与生物标志物（子问题 2）— 报告内容段
+% 本文件为内容段产出：数字已从 outputs/data/S2-results.pkl 与 S2-preprocessed.pkl 只读提取填充。
+% 正文写人话，不标 pkl 字段路径；溯源见独立文件 writing-material-sub2.tex。
+% 数据源约定：outputs/data/S2-results.pkl（结果）+ outputs/data/S2-preprocessed.pkl（样本/特征数）。
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+
+% 内联代码宏：转义下划线，供正文引用 pkl 字段名。
+\newcommand{\pkl}[1]{\texttt{\detokenize{#1}}}
+
+\title{第二次模拟赛 B 题 · 子问题 2：特征选择与生物标志物\\（内部报告内容段 draft）}
+\author{报告对话}
+\date{2026-08-21}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+本文档是 S2（特征选择与生物标志物）的内部报告\textbf{内容段}：在骨架段基础上，从结果
+数据文件只读提取数字并填充全部占位，给出每病稳定标志物清单、两路信号解读、共现分析与
+跨疾病对比。正文按报告自足性规则行文，假设读者为未参与本子问题建模、但有工程/建模基础
+的队友。图表仍为占位符，正式图由队友在报告定稿后按规格出图。
+\end{abstract}
+
+% ============================================================
+\section{本问任务与整体思路}
+本节约一句话：本问从 1331 个高维稀疏物种特征中，为每病筛出稳定、可解释、生物合理的
+Top 10--20 生物标志物，并解读其丰度/存在趋势与跨疾病关系，为 S1 分类器提供一致特征子集。
+
+\subsection{本问解决什么}
+本问（S2，特征选择与生物标志物）承接 S1 疾病预测模型，任务是：给定清洗后相对丰度数据
+（阶段 0.3 清洗产物），对结直肠癌（CRC）、炎症性肠病（IBD）、肥胖症（Obesity）三病
+\textbf{独立}筛选最具判别力的微生物特征子集（潜在生物标志物），并分析其在不同疾病状态下的
+丰度变化趋势、以及不同疾病类型下标志物的重叠与特异性关系。
+
+\subsection{方法主线（一句话）}
+近全零过滤 → CLR 前置 → Lasso + bootstrap 稳定性选择（每病独立）→ 两路信号解释
+（Fisher 存在/缺失 + Wilcoxon 非零丰度，BH-FDR 校正）→ 入选标志物共现分析（二阶初探）
+→ VIP 独立佐证（RF 佐证层退化不可用）→ 跨疾病对比。核心思路是「多轮聚合稳定化 + 信号拆分」，对抗
+小样本（样本数 CRC 121、IBD 110、Obesity 253）、高维稀疏（过滤后特征数 264）
+下的选择方差与零值主导语义。
+
+\subsection{故事线（章节骨架）}
+\begin{enumerate}
+  \item 本问解决什么（§1）：任务、方法主线、输出定义。
+  \item 数据与预处理（§2）：输入、近全零过滤、CLR 前置、三病标签标准。
+  \item 特征选择方法（§3）：稳定性选择框架（Lasso+bootstrap）、数学定义、参数。
+  \item 稳定标志物结果（§4）：每病 Top 10--20 标志物清单 + 频率 + 诚实标注（全量 vs CV 内）。
+  \item 两路信号解读（§5）：存在/缺失信号 vs 非零丰度信号，主导信号语义（F2）。
+  \item 共现分析（§6）：入选标志物两两 Spearman 相关 + 共现/互斥检验（二阶初探）。
+  \item 跨疾病对比（§7）：Jaccard 重叠 + 共同/疾病特异性标志物。
+  \item 结论与讨论（§8）：收束 + 与 S1 联动 + 局限。
+\end{enumerate}
+
+\subsection{文首符号表（自足性）}
+\begin{center}
+\footnotesize
+\begin{tabular}{c l l}
+\toprule
+\textbf{符号} & \textbf{定义} & \textbf{首次出现} \\
+\midrule
+$n$ & 样本数（CRC 121 / IBD 110 / Obesity 253） & §2 \\
+$p$ & 特征数（过滤后 264） & §2 \\
+$y_i$ & 第 $i$ 个样本标签（患病 $=1$，健康 $=0$） & §3 \\
+$x_i$ & 第 $i$ 个样本的特征向量（CLR 后） & §3 \\
+$\beta_0$ & Lasso 逻辑回归截距项 & §3 \\
+$\beta_j$ & 第 $j$ 个特征回归系数 & §3 \\
+$\hat{p}_i$ & 第 $i$ 个样本预测患病概率 & §3 \\
+$\lambda$ & L1 正则强度（越大越稀疏） & §3 \\
+$B$ & bootstrap 重抽样轮数（全量 100 / CV 内 50） & §3 \\
+$\hat{\pi}_j$ & 第 $j$ 特征在 $B$ 轮中被选中频率 & §3 \\
+$\tau$ & 稳定特征入选频率阈值（0.5） & §3 \\
+$\delta$ & CLR 乘法替换伪计数（$6.5\times10^{-6}$，与 S1 一致） & §2 \\
+$D$ & CLR 变换中的特征数（=264） & §3 \\
+$\sigma(\cdot)$ & sigmoid 函数 & §3 \\
+$\alpha$ & 显著性水平（0.05） & §3 \\
+$m$ & FDR 多重比较校正规模（1331 全特征） & §3 \\
+\toprule
+\textbf{跨问/实验代号} & \textbf{指代} & \textbf{首次出现} \\
+\midrule
+F2 / F3 / F6 & S2 A 类验证项（两路信号/近全零/CLR） & §2、§5 \\
+S1 & 子问题 1：疾病预测模型（本问特征子集即其输入） & §1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ============================================================
+\section{数据与预处理}
+本节约一句话：三病独立清洗，先近全零过滤再 CLR，标签标准沿用题目/S1 主方案。
+
+\subsection{数据输入}
+本问输入为阶段 0.3 清洗产物（相对丰度数据，含数据集名、疾病标签与物种特征列）。每病独立处理，不跨病混合。三病样本数分别为
+CRC 121（患病 48 / 健康 73）、IBD 110（患病 25 / 健康 85）、Obesity 253（患病 164 / 健康 89），
+原始特征数 1331。
+
+\subsection{近全零过滤}
+剔除零值占比 $>95\%$ 的特征（依据 A 类验证 F3——A 类验证为 S2 阶段 1.3 的建模前提核验项，
+F3 结论为近全零特征几乎不携带判别信息，留着稀释 L1/RF 信号）。过滤在**三病并集**（全 484 样本）上统一计算零值占比、一次过滤，
+特征数由 1331 降至 264（过滤前 $p_\mathrm{before}=1331$、过滤后 $p_\mathrm{after}=264$），
+与 S1/S3 标准一致。
+
+\subsection{CLR 前置}
+对保留特征做中心对数比变换（乘法替换零值 + 几何均值中心化，伪计数 $\delta=6.5\times10^{-6}$
+与 S1 一致），消除成分数据定和约束制造的伪相关（F6）。CLR 变换式见 §3.3。
+
+\subsection{标签标准}
+\begin{itemize}
+  \item CRC：患病=cancer；健康=n+small\_adenoma（\textbf{small\_adenoma 四种方案沿 S1 裁定执行}——
+        四种方案指 S1 阶段对 small\_adenoma 归健康/患病的四种候选方案，S1 已选定①归健康，S2 跟随）。
+  \item IBD：患病=ibd\_ulcerative\_colitis / ibd\_crohn\_disease；健康=n。
+  \item Obesity：患病=obesity；健康=leaness。
+\end{itemize}
+
+% ============================================================
+\section{特征选择方法}
+本节约一句话：用 Lasso+bootstrap 稳定性选择做每病主方案，拆两路信号解释入选标志物，
+VIP 仅作独立佐证不参与主选择（RF 佐证层退化不可用）。
+
+\subsection{稳定性选择框架（主方法）}
+对每病独立执行：分层 CV 折内 Lasso 稀疏 Logistic + bootstrap 重抽样（全量轮数 $B=100$，
+CV 折内 $B=50$），统计每特征被选中（系数非零）的出现频率 $\hat{\pi}_j$；频率 $\ge\tau$
+（阈值 $\tau=0.5$）入选为稳定特征，每病取 Top 10--20。Lasso 目标函数：
+$$\min_{\beta_0,\beta}\ -\frac{1}{n}\sum_i\big[y_i\log\hat{p}_i+(1-y_i)\log(1-\hat{p}_i)\big]
++\lambda\sum_j|\beta_j|,\quad \hat{p}_i=\sigma(\beta_0+x_i^\top\beta).$$
+出现频率 $\hat{\pi}_j=\frac{1}{B}\sum_{b=1}^{B}\mathbb{1}\{\hat{\beta}_j^{(b)}\neq 0\}$。
+L1 正则强度由逆正则化参数 $C=0.1$ 控制（sklearn 1.9 新 API，$C$ 越小正则越强、解越稀疏）。
+\textbf{诚实标注}：报告并列给出「全量选择（乐观）」与「CV 内稳定频率（诚实）」两套结果。
+
+\subsection{两路信号检验（对稳定特征，非再选）}
+\begin{itemize}
+  \item (a) 存在/缺失信号：Fisher 精确检验（2×2：存在/缺失 × 病/健）。
+  \item (b) 非零丰度信号：非零样本上 Wilcoxon 秩和检验（CLR 后丰度）。
+  \item 两路均做 BH-FDR 校正（BH=Benjamini-Hochberg 多重比较校正，$\alpha=0.05$，
+        \textbf{m=1331 全特征规模}，医疗宁可严格）。
+\end{itemize}
+
+\subsection{CLR 变换式}
+$$\mathrm{clr}(x)_j=\ln x_j-\frac{1}{D}\sum_{k=1}^{D}\ln x_k.$$
+零值先乘法替换伪计数 $\delta$ 后重归一化再取对数（与 S1 一致）。
+
+\subsection{佐证层（独立复现，不参与主选择）}
+以 PLS-DA VIP（阈值 $\mathrm{VIP}>1.5$）作独立复现佐证，与 Alpha 稳定特征
+（Alpha=本问主选择路径 Lasso+bootstrap 稳定性选择产出的稳定特征）的
+Top-N 排名一致性核对（CRC/IBD/Obesity 的 VIP 排名 Spearman 相关 0.54/0.52/0.35）。
+\textbf{RF 佐证层退化不可用}：RF permutation importance 全部退化至 $\sim10^{-17}$ 量级，
+不具判别信息，故本报告\textbf{不引用 RF 数字}，仅以 VIP 作独立复现佐证（见待裁定项）。
+VIP 仅用于排名一致性核对，不产出独立 VIP 选择集（见待裁定项 T2：VIP 是否应产出独立选择集，待主分析裁定）。
+
+% ============================================================
+\section{稳定标志物结果}
+本节约一句话：每病产出稳定标志物清单及频率、显著性、方向，并列乐观与诚实两套。
+
+\subsection{每病稳定特征清单}
+在 $\tau=0.5$、$C=0.1$ 下，CRC 与 IBD 各入选 4 个稳定特征，Obesity 入选 20 个。
+CRC/IBD 入选数低于 Top 10--20 目标，源于严格正则（$C=0.1$）下仅保留高置信特征；
+Obesity 入选 20 个但信号弱（见 §5）。各病稳定特征及全量/折内频率如下。
+
+\textbf{CRC（4 个，方向均 up=患病富集）}：
+\begin{center}
+\footnotesize
+\begin{tabular}{l c c c}
+\toprule
+标志物 & 全量频率 $\hat{\pi}_j$ & CV 折内频率 & 排名 \\
+\midrule
+Peptostreptococcus\_stomatis & 0.99 & 0.96 & 1 \\
+Fusobacterium\_nucleatum & 0.94 & 0.72 & 2 \\
+Porphyromonas\_somerae & 0.62 & 0.39 & 3 \\
+Clostridium\_hathewayi & 0.52 & 0.30 & 4 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{IBD（4 个）}：
+\begin{center}
+\footnotesize
+\begin{tabular}{l c c c c}
+\toprule
+标志物 & 全量频率 $\hat{\pi}_j$ & CV 折内频率 & 排名 & 方向 \\
+\midrule
+Alistipes\_finegoldii & 0.81 & 0.68 & 1 & down \\
+Bifidobacterium\_bifidum & 0.75 & 0.66 & 2 & up \\
+Akkermansia\_muciniphila & 0.55 & 0.48 & 3 & down \\
+Eubacterium\_ventriosum & 0.53 & 0.32 & 4 & down \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Obesity（20 个，0 个 FDR 显著）}：Top 为 Ruminococcus\_flavefaciens（0.89）、
+Pseudoflavonifractor\_capillosus（0.84）、Rothia\_mucilaginosa（0.72）等，全部
+Fisher FDR $>0.05$，弱信号符合预期（R3：S2 结果分析中 Obesity 弱信号的预期结论）。
+
+\subsection{标志物表}
+每病标志物汇总表（特征名、频率、Fisher FDR、方向、是否已知标志物）如下。
+
+\textbf{CRC}：
+\begin{center}
+\footnotesize
+\begin{tabular}{l c c c c}
+\toprule
+标志物 & 频率 & Fisher FDR & 方向 & 已知标志物 \\
+\midrule
+Peptostreptococcus\_stomatis & 0.99 & $1.24\times10^{-5}$ & up & 是 \\
+Fusobacterium\_nucleatum & 0.94 & $3.94\times10^{-5}$ & up & 是 \\
+Porphyromonas\_somerae & 0.62 & $1.72\times10^{-2}$ & up & 是 \\
+Clostridium\_hathewayi & 0.52 & $5.99\times10^{-1}$ & up & 否 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{IBD}：
+\begin{center}
+\footnotesize
+\begin{tabular}{l c c c c}
+\toprule
+标志物 & 频率 & Fisher FDR & 方向 & 已知标志物 \\
+\midrule
+Alistipes\_finegoldii & 0.81 & $6.75\times10^{-3}$ & down & 否 \\
+Bifidobacterium\_bifidum & 0.75 & $6.75\times10^{-3}$ & up & 是 \\
+Akkermansia\_muciniphila & 0.55 & $6.75\times10^{-3}$ & down & 否 \\
+Eubacterium\_ventriosum & 0.53 & $3.98\times10^{-2}$ & down & 否 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Obesity}：20 个标志物全部 Fisher FDR $>0.05$，不列明细，见 §9 图表占位。
+
+\subsection{诚实标注}
+并列全量选择（乐观）与 CV 折内稳定频率（诚实）两套数字。以 CRC 为例，全量频率
+0.99/0.94/0.62/0.52 对应折内 0.96/0.72/0.39/0.30——高排名特征折内频率仍高（稳定），
+低排名特征折内明显回落（选择方差大）；IBD 同理（0.81/0.75/0.55/0.53 对应
+0.68/0.66/0.48/0.32）。说明入选特征中靠前者更稳定，靠后者需谨慎解读。
+
+% ============================================================
+\section{两路信号解读}
+本节约一句话：把每个稳定标志物的差异拆成「在不在」与「多不多」两路信号，判定主导信号并对照已知标志物。
+
+\subsection{信号拆分}
+对入选标志物，用 Fisher 存在/缺失信号与 Wilcoxon 非零丰度信号分别判定显著性，
+标注主导信号为 presence 或 abundance。
+三病入选标志物的主导信号\textbf{几乎全为 presence}（存在/缺失主导）：CRC/IBD 全部为
+presence，Obesity 20 个中 18 个 presence、2 个 abundance（Bacteroides\_ovatus、
+Ruminococcus\_bromii），非零丰度信号普遍不显著。
+
+按全 264 特征标准统计两路显著数（BH-FDR，m=1331）：
+\begin{center}
+\footnotesize
+\begin{tabular}{l c c c}
+\toprule
+疾病 & Fisher 显著数 & Wilcoxon 显著数 & 入选标志物主导信号 \\
+\midrule
+CRC & 4 & 1 & presence \\
+IBD & 6 & 1 & presence \\
+Obesity & 0 & 0 & presence 18 / abundance 2（均不显著） \\
+\bottomrule
+\end{tabular}
+\end{center}
+以 CRC 为例，Peptostreptococcus\_stomatis 的 Fisher FDR $1.24\times10^{-5}$ 极显著而
+Wilcoxon FDR 0.113 不显著，说明其判别力主要来自「患病组更常存在」而非「存在时丰度更高」；
+Fusobacterium\_nucleatum 的 Wilcoxon 检验在非零样本上 $p=1$，进一步印证存在/缺失主导。
+
+\subsection{已知标志物对照}
+与领域知识库中的已知标志物交叉核对，作方法有效性锚点。CRC 4 个入选标志物中
+3 个命中已知标志物（Peptostreptococcus\_stomatis、Fusobacterium\_nucleatum、
+Porphyromonas\_somerae），Clostridium\_hathewayi 未命中；IBD 4 个中 1 个命中
+（Bifidobacterium\_bifidum，已知属）。CRC 命中率最高，方法有效性锚点 H6（S2 结果分析中
+已知标志物命中率验证项）强验证。
+
+% ============================================================
+\section{共现分析（协同效应初探）}
+本节约一句话：以入选标志物为限做两两 Spearman 相关与共现/互斥检验，识别协同/互斥对。
+
+\subsection{相关矩阵}
+非零样本上、CLR 后丰度的两两 Spearman 相关矩阵/热图。
+
+\subsection{共现/互斥网络}
+相关显著对用 Fisher 精确检验（存在/缺失标准）验证同现/互斥是否超出独立期望，
+输出网络（节点=标志物，边=显著共现/互斥）。
+三病显著边数：CRC 4 条（全部共现）、IBD 6 条（3 共现 / 3 互斥）、Obesity 24 条。
+
+CRC 最强共现对为 Peptostreptococcus\_stomatis $\leftrightarrow$ Fusobacterium\_nucleatum
+（Spearman 0.76，Fisher $p\approx8.8\times10^{-7}$，OR 12.9；OR=比值比 odds ratio，
+衡量共现/互斥强度）——两者均为 CRC 相关口腔菌，
+共现生物合理；其次 Peptostreptococcus\_stomatis $\leftrightarrow$ Porphyromonas\_somerae
+（Spearman 0.83）。IBD 中 Alistipes\_finegoldii 与 Bifidobacterium\_bifidum 呈互斥
+（OR 0.19），与二者方向相反（down/up）一致。
+
+\subsection{边界声明（必须含）}
+「小样本下仅对入选标志物做二阶探索，无法全特征交互建模；标志物筛选主方案仍为边际信号
+（生物标志物研究标准方案）。」
+
+% ============================================================
+\section{跨疾病对比}
+本节约一句话：比较三病稳定标志物集合的重叠与特异性，给出共同标志物与疾病特异性标志物。
+
+\subsection{标志物重叠}
+三病稳定特征集两两 Jaccard 重叠：
+CRC--IBD 0.0、CRC--Obesity 0.0、IBD--Obesity 0.0。三病稳定特征集\textbf{完全疾病特异}，
+无任何重叠。
+
+\subsection{共同与特异性标志物}
+共同标志物列表为空，各病标志物全部为疾病特异：CRC 4 个、IBD 4 个、Obesity 20 个。
+这与「Fusobacterium\_nucleatum 的 CRC 特异性」等已知生物学预期一致——不同疾病由不同
+微生物驱动，标志物不跨病共享。
+
+% ============================================================
+\section{结论与讨论}
+本节约一句话：收束本问核心交付，说明与 S1 的联动与已知局限。
+
+\subsection{结论收束}
+在 $\tau=0.5$、$C=0.1$ 下，CRC 与 IBD 各得 4 个高置信稳定标志物（CRC 3/4 命中已知标志物，
+方法有效性锚点强验证），Obesity 得 20 个但全部 FDR 不显著（弱信号）。所有入选标志物主导
+信号几乎全为存在/缺失（presence）：CRC/IBD 全部 presence，Obesity 18/20 presence +
+2 abundance（Bacteroides\_ovatus、Ruminococcus\_bromii），非零丰度信号普遍不显著。
+三病标志物完全疾病特异，无共同标志物。
+CRC 入选标志物间存在强共现簇（口腔菌协同），IBD 存在方向相反的互斥对。
+
+\subsection{与 S1 联动}
+本问所选稳定特征子集即 S1 分类器输入特征，形成「特征选择 → 分类建模」一致链路。
+CRC/IBD 的 4 个高置信特征可直接作为 S1 输入；Obesity 弱信号提示 S1 对 Obesity 的
+判别主要依赖其他特征或需放宽阈值。
+
+\subsection{局限}
+小样本选择方差（CV 折内频率回落）、零值主导（存在/缺失信号主导）、Obesity 弱信号
+（可信度分级，预期显式降低）、交互效应仅二阶初探。CRC/IBD 入选数低于 Top 10--20 目标，
+源于严格正则 $C=0.1$ 的保守标准（见待裁定项 T1：主方案 $C=0.1$ 是否应放宽，待主分析裁定）。
+
+% ============================================================
+\section{图表占位符与规格}
+本节约一句话：列出每张正式图的图名、数据源（pkl+字段）与论文位置，供出图。
+
+% 每张图给出：图名 / 数据源 / 论文位置。正式图由队友在报告定稿后按 chart-generator 出图。
+% 数据源字段名对应 handoff-S2-code-agent.md §3 结构。
+
+\begin{table}[ht]
+\centering
+\caption{图表占位清单（数据源 = \pkl{outputs/data/S2-results.pkl}）}
+\footnotesize
+\begin{tabular}{p{0.30\textwidth} p{0.42\textwidth} p{0.24\textwidth}}
+\toprule
+\textbf{图名} & \textbf{数据源（pkl 字段）} & \textbf{论文位置} \\
+\midrule
+每病稳定特征频率条形图（Top 稳定标志物） & \pkl{per\_disease.<D>.stable\_features.\{feature,frequency,rank\}} & §4.1 \\
+每病标志物汇总表 & \pkl{per\_disease.<D>.biomarker\_table} & §4.2 \\
+两路信号统计表（Fisher/Wilcoxon FDR + 主导信号） & \pkl{per\_disease.<D>.two\_path\_signals} & §5.1 \\
+共现 Spearman 相关热图 & \pkl{per\_disease.<D>.cooccurrence.spearman\_matrix} & §6.1 \\
+共现/互斥网络 & \pkl{per\_disease.<D>.cooccurrence.cooccurrence\_edges} & §6.2 \\
+佐证一致性（VIP vs Alpha Top-N 排名） & \pkl{per\_disease.<D>.topN\_consistency} + \pkl{vip} & §3.4 \\
+跨疾病 Jaccard 重叠热图 & \pkl{cross\_disease.jaccard\_matrix} & §7.1 \\
+共同/疾病特异性标志物表 & \pkl{cross\_disease.common\_biomarkers} + \pkl{disease\_specific} & §7.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% 写作素材见 writing-material-sub2.tex（独立文件，供队友阶段 4 写作）
+% READER-AUDIT: 见 reader-audit-sub2.md
+
+\end{document}

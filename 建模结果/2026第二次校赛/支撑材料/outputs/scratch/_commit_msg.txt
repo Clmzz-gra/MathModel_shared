@@ -1,0 +1,12 @@
+[S0] S2 正式图修复完成（图审）
+
+修复 S2 三张正式图自明性缺陷（图审有条件通过后复审）。
+
+原因：matplotlib 默认 pdf.fonttype=3（Type3 字体仅 256 槽，无法编码 CJK），
+导致中文子图标题/图例/轴标签在 PDF 中丢失。改为 pdf.fonttype=42（TrueType 嵌入）
+后中文正常渲染；同时疾病标签补英文缩写（结直肠癌 CRC / 炎症性肠病 IBD / 肥胖症 Obesity）。
+
+影响：outputs/scratch/plot_s2.py、outputs/figures/S2-stable-frequency.pdf、
+S2-tau-sensitivity.pdf、S2-cooccurrence-heatmap.pdf、S2-cross-disease.pdf。
+
+验证：PyMuPDF 文本提取确认三图中文标题/图例/轴标签齐全，字体由 Type3 转 Type0。

@@ -1,0 +1,2 @@
+﻿train_baseline,test_baseline,delta_baseline,youden_threshold,boundary_position,sensitivity,train_pos_mean,test_pos_mean
+0.316017,0.648221,0.332204,0.920497,0.960474,0.024390,0.979418,0.186409

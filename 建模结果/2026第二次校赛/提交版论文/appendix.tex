@@ -1,0 +1,227 @@
+\section{附录}
+\label{sec:appendix}
+
+\subsection{核心算法}
+
+算法 \ref{alg:s1-cv}--\ref{alg:s3-density} 给出三个子问题核心步骤的伪代码，符号与正文一致；实际实现为 Python，参数取值见正文相应小节。
+
+\subsubsection{第一问：分层 5 折交叉验证评估}
+
+\begin{algorithm}[H]
+\caption{分层 5 折交叉验证评估（第一问，主模型 L2）}
+\label{alg:s1-cv}
+\begin{algorithmic}[1]
+\Procedure{StratifiedCV}{$X$, $y$, model constructor, folds, minority class}
+  \For{$f = 1, 2, \dots, 5$}
+    \State Split train $\big(X^{(tr)}_f, y^{(tr)}_f\big)$ and test $\big(X^{(te)}_f, y^{(te)}_f\big)$ from stratified fold $f$
+    \State Fit model $m_f \gets \mathrm{make\_model}\big(X^{(tr)}_f, y^{(tr)}_f\big)$
+    \State Predict probabilities $p_f \gets m_f\big(X^{(te)}_f\big)$ and labels $\hat{y}_f \gets \mathbf{1}[p_f \ge 0.5]$
+    \State Compute $\mathrm{AUC}_f$, $\mathrm{ACC}_f$, $\mathrm{F1}_f$, $\mathrm{Recall}_f$ with minority class as positive
+  \EndFor
+  \State \Return mean of each metric over the 5 folds
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{第二问：Lasso 稳定性选择与 BH-FDR 校正}
+
+\begin{algorithm}[H]
+\caption{Lasso 稀疏 Logistic 稳定性选择（第二问）}
+\label{alg:s2-stable}
+\begin{algorithmic}[1]
+\Procedure{StabilitySelection}{$X$, $y$, $C$, $B$, $\tau$}
+  \For{$b = 1, 2, \dots, B$}
+    \State Draw bootstrap subset $\big(X^{(b)}, y^{(b)}\big)$ by resampling positive and negative samples with replacement
+    \State Fit Lasso sparse logistic regression on $\big(X^{(b)}, y^{(b)}\big)$; obtain coefficients $\hat{\beta}^{(b)}$
+    \State Record selected set $S^{(b)} = \big\{ j : |\hat{\beta}^{(b)}_j| > \varepsilon \big\}$
+  \EndFor
+  \State Selection frequency $\hat{\pi}_j = \tfrac{1}{B}\sum_{b=1}^{B}\mathbf{1}\big[j \in S^{(b)}\big]$
+  \State Stable set $\hat{S}_\tau = \big\{ j : \hat{\pi}_j \ge \tau \big\}$ with $\tau = 0.5$
+  \State \Return $\hat{S}_\tau$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{BH-FDR 多重比较校正（第二问）}
+\label{alg:s2-fdr}
+\begin{algorithmic}[1]
+\Procedure{BH-FDR}{$p_1, p_2, \dots, p_m$}
+  \State Sort in ascending order $p_{(1)} \le p_{(2)} \le \dots \le p_{(m)}$
+  \State $q_{(m)} \gets p_{(m)}$
+  \For{$i = m-1, m-2, \dots, 1$}
+    \State $q_{(i)} \gets \min\big( q_{(i+1)},\ \tfrac{m}{i}\, p_{(i)} \big)$
+  \EndFor
+  \State \Return corrected q-values
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{第三问：CLR 变换、Youden 阈值与密度比重加权}
+
+\begin{algorithm}[H]
+\caption{CLR 变换与 Youden 阈值（第三问）}
+\label{alg:s3-clr-youden}
+\begin{algorithmic}[1]
+\Procedure{CLRTransform}{$X$, $\delta$}
+  \State Multiplicative replacement: $x_{ij} \leftarrow \delta = 6.5\times10^{-6}$ if $x_{ij} = 0$
+  \State Center by geometric mean per sample: $\mathrm{clr}(x_{ij}) = \ln x_{ij} - \tfrac{1}{p}\sum_{k=1}^{p}\ln x_{ik}$
+  \State \Return $\mathrm{clr}(X)$
+\EndProcedure
+\Procedure{YoudenThreshold}{$y$, $s$}
+  \State Compute on training set from ROC curve $\tau^{*} = \arg\max_{\tau}\big[ \mathrm{TPR}(\tau) - \mathrm{FPR}(\tau) \big]$
+  \State \Return $\tau^{*}$, estimated on training set only
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{密度比重加权（第三问，候选模型 R3）}
+\label{alg:s3-density}
+\begin{algorithmic}[1]
+\Procedure{DensityRatioWeighting}{$X_{\mathrm{clr}}$, train indices $\mathcal{I}_{tr}$, test indices $\mathcal{I}_{te}$}
+  \State Construct domain labels $d_i = 0\ (i \in \mathcal{I}_{tr})$, $d_i = 1\ (i \in \mathcal{I}_{te})$
+  \State Fit domain classifier $g$: logistic regression distinguishing train/test
+  \State Weights $w_i \gets \exp\big(g(x_i)\big) \cdot \tfrac{n_{tr}}{n_{te}}$, clipped to $[0, 10]$
+  \State \Return training sample weights, using test features only without test labels
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{补充图表}
+
+以下图为正文对应结果的补充展示，正文以文字与表格给出关键数字。
+
+{\small
+\begin{longtable}{>{\centering\arraybackslash}p{0.2200\textwidth}>{\centering\arraybackslash}p{0.1800\textwidth}>{\centering\arraybackslash}p{0.1800\textwidth}>{\centering\arraybackslash}p{0.3000\textwidth}}
+\caption{共现/互斥网络边数}\label{tab:s2-edge-counts}\\
+\toprule
+疾病 & 总边数 & 共现 & 互斥 \\
+\midrule
+\endfirsthead
+\toprule
+疾病 & 总边数 & 共现 & 互斥 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+CRC & 4 & 4 & 0 \\
+IBD & 6 & 3 & 3 \\
+Obesity & 24 & --- & --- \\
+\end{longtable}
+}
+
+{\small
+\begin{longtable}{>{\centering\arraybackslash}p{0.3400\textwidth}>{\centering\arraybackslash}p{0.1200\textwidth}>{\centering\arraybackslash}p{0.1200\textwidth}>{\centering\arraybackslash}p{0.3000\textwidth}}
+\arrayrulecolor[gray]{0.8}
+\caption{CRC 共现对明细}\label{tab:s2-cooccurrence}\\
+\toprule
+共现对 & Spearman & Fisher p & OR \\
+\midrule
+\endfirsthead
+\toprule
+共现对 & Spearman & Fisher p & OR \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\emph{Peptostreptococcus stomatis} $\leftrightarrow$ \emph{Fusobacterium nucleatum} & 0.762 & 8.82e-07 & 12.86 最强 \\
+\hline
+\emph{Peptostreptococcus stomatis} $\leftrightarrow$ \emph{Porphyromonas somerae} & 0.829 & 0.0246 & 4.67 \\
+\hline
+\emph{Peptostreptococcus stomatis} $\leftrightarrow$ \emph{Clostridium hathewayi} & $-$0.101 & 0.0199 & 3.12 \\
+\hline
+\emph{Fusobacterium nucleatum} $\leftrightarrow$ \emph{Clostridium hathewayi} & 0.346 & 0.0056 & 6.78 \\
+\end{longtable}
+\arrayrulecolor{black}
+}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{S1-threshold-analysis.pdf}
+\caption{阈值-指标曲线（L2 概率分类器，虚线为 Youden 最优阈值）}
+\label{fig:s1-thr}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{S1-adenoma-sensitivity.pdf}
+\caption{small adenoma 四种方案敏感性对比（阴影为默认主方案 ①归健康）}
+\label{fig:s1-adenoma}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{S2-cross-disease.pdf}
+\caption{三病 Jaccard 重叠矩阵}
+\label{fig:s2-cross-disease}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{S2-tau-sensitivity.pdf}
+\caption{稳定标志物入选数随 $\tau$ 变化（红虚线为默认阈值 $\tau=0.5$）}
+\label{fig:s2-tau-sensitivity}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{S3-migration-direction.pdf}
+\caption{共享标志物跨疾病迁移方向一致性（左侧为方向一致、右侧为方向翻转；符号检验 $p=0.536$，未显著偏离随机）}
+\label{fig:s3-migration}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{cluster-tsne.pdf}
+\caption{三数据集样本聚类 t-SNE 可视化（按疾病着色，批次效应初探）}
+\label{fig:app-tsne}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{pca-scree.pdf}
+\caption{PCA 碎石图（前两主成分解释方差占比，数据探索）}
+\label{fig:app-scree}
+\end{figure}
+
+\subsection{支撑材料清单}
+
+支撑材料包括程序文件、数据文件、图表文件与结果表，文件名列表如下（不含路径，完整文件随支撑材料压缩包提供）。
+
+\subsubsection*{程序文件}
+
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item \texttt{S1-model.py}、\texttt{S2-model.py}、\texttt{S3-model.py}：三子问题主模型实现
+  \item \texttt{preprocess-S1.py}、\texttt{preprocess-S2.py}、\texttt{preprocess-S3.py}：三子问题预处理
+  \item \texttt{clean-B.py}、\texttt{convert-B-raw.py}：原始数据清洗与格式转换
+  \item \texttt{plot\_s1.py}、\texttt{plot\_s2.py}、\texttt{plot\_s3.py}：正式图表绘制
+  \item \texttt{export\_matlab\_data.py}：MATLAB 重绘数据导出
+  \item \texttt{utils.py}、\texttt{utils-S2.py}：公共工具函数
+\end{itemize}
+
+\subsubsection*{数据文件}
+
+\begin{itemize}\setlength{\itemsep}{0pt}\raggedright
+  \item \texttt{B-raw.pkl}（原始数据）、\texttt{c-data-cleaned.pkl}（清洗后共享数据）
+  \item \texttt{S1-preprocessed.pkl}、\texttt{S2-preprocessed.pkl}、\texttt{S3-preprocessed.pkl}：三子问题预处理数据
+  \item \texttt{S1-results.pkl}、\texttt{S2-results.pkl}、\texttt{S3-results.pkl}：三子问题实验结果
+  \item 六轮归因实验数据：\texttt{S3-combat-corrected.pkl}、\texttt{E2-bayes-results.pkl}、\texttt{S3-e1-baselines.pkl}
+  \item \hspace{2em}\texttt{S3-e3-fewshot.pkl}、\texttt{S3-e5-source-ensemble.pkl}、\texttt{S3-e6-mlp.pkl}
+\end{itemize}
+
+\subsubsection*{图表文件}
+
+\begin{itemize}\setlength{\itemsep}{0pt}\raggedright
+  \item 正式结果图：\texttt{S1-roc-curve.pdf}、\texttt{S1-performance-compare.pdf}、\texttt{S1-feature-importance.pdf}、\texttt{S2-stable-frequency.pdf}、\texttt{S2-cooccurrence-heatmap.pdf}、\texttt{S3-strategy-compare.pdf}、\texttt{S3-decay-attribution.pdf}、\texttt{S3-threshold-drift.pdf}
+  \item 正文移入本附录：\texttt{S1-threshold-analysis.pdf}、\texttt{S1-adenoma-sensitivity.pdf}、\texttt{S2-cross-disease.pdf}、\texttt{S2-tau-sensitivity.pdf}、\texttt{S3-migration-direction.pdf}
+  \item 数据探索图：\texttt{cluster-tsne.pdf}、\texttt{pca-scree.pdf}
+  \item 数据特征图：\texttt{chart-sample-composition.pdf}、\texttt{chart-zero-sparsity.pdf}、\texttt{chart-abundance-distribution.pdf}、\texttt{chart-batch-effect.pdf}、\texttt{chart-known-biomarker-presence.pdf}
+  \item 技术路线图：\texttt{flow-overview.pdf}
+\end{itemize}
+
+\subsubsection*{结果表}
+
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item \texttt{S2-stable-biomarkers.tex}（稳定标志物表）、\texttt{S2-cross-disease.tex}（Jaccard 重叠矩阵）、\texttt{S2-tau-sensitivity.tex}（$\tau$ 敏感性）、\texttt{S3-strategy-compare.tex}（四策略对比）
+\end{itemize}

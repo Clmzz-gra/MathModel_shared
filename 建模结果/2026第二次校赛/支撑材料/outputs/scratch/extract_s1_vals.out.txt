@@ -1,0 +1,124 @@
+﻿===== S1-results meta =====
+{'generated': 'S1 2.1 ��ʽģ��', 'source': 'S1-preprocessed.pkl (�� c-data-cleaned.pkl)', 'note': '��ģ�� L2(CLR)+class_weight=balanced������ RF(ԭʼ���)���ֲ�5��CV seed=42����ȫ����� 1331��264��CLR ��=6.5e-06��AUC ��ָ�� + F1/Recall(������)', 'field_semantics': {'<ds>.L2_CLR.AUC': '5 �� CV AUC ��ֵ����ֵ�޹أ���ָ�꣩', '<ds>.L2_CLR.confusion_matrix': 'OOF Ԥ��(��ֵ0.5)�ۺϣ�[[TN,FP],[FN,TP]]������=1(����)', '<ds>.L2_CLR.coefficients': '264 ά CLR �ռ�ϵ����ȫ����ϣ�����ԭʼ���ЧӦ', '<ds>.RF_raw.feature_importances': 'permutation importance(roc_auc,n_repeats=5) 264 ά', '<ds>.baseline.single_feature_best_AUC': '�����������ֵ AUC���������ֹ��Ͻ磬���ܵذ壩', '<ds>.LOOCV.AUC': '��һ�� AUC����ģ�� L2����ʵ���ƣ�', '<ds>.soft_voting': '�� L2 �� RF AUC ����0.75 ʱ�����B2 ����������', 'adenoma_sensitivity.selected_main_caliber': 'Ĭ�� healthy(�ھ���)���������ھ�����ģ/��������', 'B3_class_weight': 'metahit class_weight=balanced vs None �� Recall(������) �Ա�', 'B4_outlier_removal': '�޳� 14 ��Ⱥ����(��1)��ѵ Zeller �Ա� AUC'}}
+
+===== S1-preprocessed meta =====
+{'generated': 'S1 1.4 Ԥ����', 'source': 'c-data-cleaned.pkl', 'note': '��ǩӳ�仼��=1/����=0����ȫ����� 1331��264��CLR ��=6.5e-06���ֲ�5��CV seed=42', 'field_semantics': {'datasets.<name>.y': '����=1/����=0���ھ���Ĭ�����ھ���small_adenoma �齡����', 'datasets.<name>.X_raw': '��ȫ����˺� 264 άԭʼ��Է�ȣ�RF �������룩', 'datasets.<name>.X_clr': '264 ά CLR �任��������L2 ��ģ�����룩', 'datasets.<name>.folds': 'StratifiedKFold(5,shuffle,seed=42) ��������train/test Ϊ������λ�ã�', 'adenoma_calibers.*.y': 'small_adenoma �Ŀھ���ǩ���� Zeller����keep_mask Ϊ Zeller 121 �ڲ�������', 'adenoma_calibers.CRC_adenoma_separate.adenoma_indices': 'small_adenoma 26 ���� Zeller 121 �ڵ�λ�ã������ࣩ'}}
+
+===== �����ݼ����� =====
+
+-- Zeller --
+  L2 AUC=0.791 std=0.102 ACC=0.727 F1m=0.640 Recm=0.600
+  L2 cm=[[59, 14], [19, 29]] intercept=0.0097
+  RF AUC=0.845 std=0.068 ACC=0.785 F1m=0.678 Recm=0.580
+  RF CM=[[67, 6], [20, 28]]
+  baseline single_feature_best_AUC=0.758 dummy_ACC=0.603 dummy_AUC=0.500
+  LOOCV AUC=0.804 full_AUC=1.000 overfit_delta=0.1958 overfit_flag=True
+  soft_voting AUC=0.838 ACC=0.760 F1m=0.667 Recm=0.604 delta_vs_best=-0.0076 beneficial=False
+
+-- metahit --
+  L2 AUC=0.887 std=0.071 ACC=0.864 F1m=0.672 Recm=0.640
+  L2 cm=[[79, 6], [9, 16]] intercept=0.0015
+  RF AUC=0.904 std=0.048 ACC=0.818 F1m=0.352 Recm=0.240
+  RF CM=[[84, 1], [19, 6]]
+  baseline single_feature_best_AUC=0.815 dummy_ACC=0.773 dummy_AUC=0.500
+  LOOCV AUC=0.875 full_AUC=1.000 overfit_delta=0.1252 overfit_flag=True
+  soft_voting AUC=0.896 ACC=0.855 F1m=0.619 Recm=0.520 delta_vs_best=-0.0080 beneficial=False
+
+-- Chatelier --
+  L2 AUC=0.650 std=0.072 ACC=0.648 F1m=0.518 Recm=0.528
+  L2 cm=[[47, 42], [47, 117]] intercept=0.0049
+  RF AUC=0.660 std=0.048 ACC=0.644 F1m=0.094 Recm=0.056
+  RF CM=[[5, 84], [6, 158]]
+  baseline single_feature_best_AUC=0.639 dummy_ACC=0.648 dummy_AUC=0.500
+  LOOCV AUC=0.627 full_AUC=1.000 overfit_delta=0.3730 overfit_flag=True
+  soft_voting=None
+
+===== adenoma_sensitivity =====
+  CRC_adenoma_as_healthy: L2=0.791 RF=0.845 n=121
+  CRC_adenoma_as_diseased: L2=0.611 RF=0.651 n=121
+  CRC_adenoma_excluded: L2=0.802 RF=0.867 n=95
+  CRC_adenoma_separate: L2=0.802 RF=0.867 n=95
+  selected_main_caliber = healthy
+
+  adenoma_separate.adenoma_profile:
+    n_adenoma = 26
+    top10_features:
+       {'feature': 'k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Eubacteriaceae|g__Eubacterium|s__Eubacterium_rectale', 'mean_abundance': 8.589808058566772}
+       {'feature': 'k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Ruminococcaceae|g__Faecalibacterium|s__Faecalibacterium_prausnitzii', 'mean_abundance': 5.7273781060312805}
+       {'feature': 'k__Bacteria|p__Bacteroidetes|c__Bacteroidia|o__Bacteroidales|f__Prevotellaceae|g__Prevotella|s__Prevotella_copri', 'mean_abundance': 5.523930407066543}
+       {'feature': 'k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Ruminococcaceae|g__Subdoligranulum|s__Subdoligranulum_unclassified', 'mean_abundance': 5.042183043291936}
+       {'feature': 'k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Lachnospiraceae|g__Butyrivibrio|s__Butyrivibrio_crossotus', 'mean_abundance': 3.7179114871944945}
+       {'feature': 'k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Ruminococcaceae|g__Ruminococcus|s__Ruminococcus_bromii', 'mean_abundance': 3.0517261809235117}
+       {'feature': 'k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Lachnospiraceae|g__Blautia|s__Ruminococcus_torques', 'mean_abundance': 2.730908845479672}
+       {'feature': 'k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Eubacteriaceae|g__Eubacterium|s__Eubacterium_eligens', 'mean_abundance': 2.3470538517498287}
+       {'feature': 'k__Bacteria|p__Bacteroidetes|c__Bacteroidia|o__Bacteroidales|f__Bacteroidaceae|g__Bacteroides|s__Bacteroides_vulgatus', 'mean_abundance': 2.130271545969523}
+       {'feature': 'k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Lachnospiraceae|g__Dorea|s__Dorea_longicatena', 'mean_abundance': 1.92342344384927}
+
+===== B3_class_weight =====
+  balanced: {'AUC': 0.8870588235294118, 'Recall_minority': 0.64, 'F1_minority': 0.6718614718614718}
+  none: {'AUC': 0.8870588235294118, 'Recall_minority': 0.52, 'F1_minority': 0.5966666666666667}
+  delta_Recall: 0.12
+
+===== B4_outlier_removal =====
+   n_outliers_removed = 14
+   k_pca_used = 64
+   full_L2_AUC = 0.7906560846560847
+   full_RF_AUC = 0.8454497354497355
+   removed_L2_AUC = 0.8016178266178265
+   removed_RF_AUC = 0.8948717948717949
+   delta_L2_AUC = 0.010961741961741822
+   delta_RF_AUC = 0.04942205942205946
+
+===== ������ + Top ϵ�� (L2 CLR) =====
+
+-- Zeller Top10 by |coef| --
+   k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Peptostreptococcaceae|g__Peptostreptococcus|s__Peptostreptococcus_stomatis  coef=+0.285
+   k__Bacteria|p__Fusobacteria|c__Fusobacteriia|o__Fusobacteriales|f__Fusobacteriaceae|g__Fusobacterium|s__Fusobacterium_nucleatum  coef=+0.245
+   k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Lachnospiraceae|g__Lachnospiraceae_noname|s__Lachnospiraceae_bacterium_1_4_56FAA  coef=-0.188
+   k__Bacteria|p__Firmicutes|c__Erysipelotrichia|o__Erysipelotrichales|f__Erysipelotrichaceae|g__Coprobacillus|s__Coprobacillus_unclassified  coef=+0.184
+   k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Lachnospiraceae|g__Lachnospiraceae_noname|s__Lachnospiraceae_bacterium_1_1_57FAA  coef=-0.182
+   k__Bacteria|p__Bacteroidetes|c__Bacteroidia|o__Bacteroidales|f__Bacteroidaceae|g__Bacteroides|s__Bacteroides_caccae  coef=-0.178
+   k__Bacteria|p__Firmicutes|c__Bacilli|o__Bacillales|f__Bacillales_noname|g__Gemella|s__Gemella_morbillorum  coef=+0.175
+   k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Coriobacteriales|f__Coriobacteriaceae|g__Adlercreutzia|s__Adlercreutzia_equolifaciens  coef=+0.168
+   k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Lachnospiraceae|g__Roseburia|s__Roseburia_intestinalis  coef=-0.167
+   k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Clostridiaceae|g__Clostridium|s__Clostridium_hathewayi  coef=+0.163
+
+-- metahit Top10 by |coef| --
+   k__Bacteria|p__Bacteroidetes|c__Bacteroidia|o__Bacteroidales|f__Porphyromonadaceae|g__Parabacteroides|s__Parabacteroides_unclassified  coef=-0.196
+   k__Bacteria|p__Bacteroidetes|c__Bacteroidia|o__Bacteroidales|f__Rikenellaceae|g__Alistipes|s__Alistipes_finegoldii  coef=-0.187
+   k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Lachnospiraceae|g__Coprococcus|s__Coprococcus_sp_ART55_1  coef=-0.175
+   k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Bifidobacteriales|f__Bifidobacteriaceae|g__Bifidobacterium|s__Bifidobacterium_bifidum  coef=+0.166
+   k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Eubacteriaceae|g__Eubacterium|s__Eubacterium_ventriosum  coef=-0.160
+   k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Lachnospiraceae|g__Butyrivibrio|s__Butyrivibrio_crossotus  coef=-0.156
+   k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Lachnospiraceae|g__Butyrivibrio|s__Butyrivibrio_unclassified  coef=+0.152
+   k__Bacteria|p__Proteobacteria|c__Deltaproteobacteria|o__Desulfovibrionales|f__Desulfovibrionaceae|g__Desulfovibrio|s__Desulfovibrio_desulfuricans  coef=-0.147
+   k__Bacteria|p__Verrucomicrobia|c__Verrucomicrobiae|o__Verrucomicrobiales|f__Verrucomicrobiaceae|g__Akkermansia|s__Akkermansia_muciniphila  coef=-0.141
+   k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Ruminococcaceae|g__Ruminococcus|s__Ruminococcus_sp_5_1_39BFAA  coef=-0.131
+
+-- Chatelier Top10 by |coef| --
+   k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Clostridiales_noname|g__Pseudoflavonifractor|s__Pseudoflavonifractor_capillosus  coef=-0.542
+   k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Coriobacteriales|f__Coriobacteriaceae|g__Coriobacteriaceae_noname|s__Coriobacteriaceae_bacterium_phI  coef=-0.444
+   k__Bacteria|p__Bacteroidetes|c__Bacteroidia|o__Bacteroidales|f__Porphyromonadaceae|g__Porphyromonas|s__Porphyromonas_asaccharolytica  coef=+0.439
+   k__Bacteria|p__Firmicutes|c__Bacilli|o__Lactobacillales|f__Streptococcaceae|g__Streptococcus|s__Streptococcus_vestibularis  coef=-0.415
+   k__Bacteria|p__Bacteroidetes|c__Bacteroidia|o__Bacteroidales|f__Bacteroidaceae|g__Bacteroides|s__Bacteroides_ovatus  coef=+0.414
+   k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Coriobacteriales|f__Coriobacteriaceae|g__Olsenella|s__Olsenella_unclassified  coef=-0.405
+   k__Bacteria|p__Proteobacteria|c__Gammaproteobacteria|o__Enterobacteriales|f__Enterobacteriaceae|g__Pantoea|s__Pantoea_unclassified  coef=+0.391
+   k__Bacteria|p__Proteobacteria|c__Gammaproteobacteria|o__Pasteurellales|f__Pasteurellaceae|g__Haemophilus|s__Haemophilus_parainfluenzae  coef=-0.386
+   k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Clostridiaceae|g__Butyricicoccus|s__Butyricicoccus_pullicaecorum  coef=+0.374
+   k__Bacteria|p__Proteobacteria|c__Gammaproteobacteria|o__Enterobacteriales|f__Enterobacteriaceae|g__Klebsiella|s__Klebsiella_pneumoniae  coef=-0.364
+
+===== preprocessed filter =====
+{'n_features_before': 1331, 'n_features_after': 264, 'n_removed': 1067, 'zero_ratio_threshold': 0.95, 'kept_indices': [0, 1, 2, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 62, 64, 65, 66, 67, 68, 69, 70, 71, 73, 74, 75, 76, 77, 78, 79, 80, 82, 83, 85, 88, 89, 93, 94, 95, 96, 98, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 112, 113, 114, 115, 117, 120, 121, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 193, 194, 195, 197, 198, 199, 200, 201, 202, 203, 204, 206, 208, 209, 210, 211, 212, 215, 216, 217, 218, 223, 224, 226, 227, 228, 229, 230, 232, 233, 239, 243, 244, 253, 254, 256, 270, 274, 281, 284, 292, 294, 296, 298, 300, 304, 307, 308, 309, 310, 313, 315, 316, 319, 323, 328, 335, 342, 345, 347, 349, 350, 351, 353, 355, 360, 365, 368, 370, 374, 376, 381, 384, 387, 390, 394, 396, 398, 399, 400, 401, 403, 407, 408, 409, 410, 421, 424, 425, 426, 433, 443, 455, 467, 468, 477, 478, 787, 801]}
+clr.delta = 6.5000000000000004e-06
+clr.function = clr_transform(x) = ln(max(x,��)) - mean_k(ln(max(x_k,��)))
+
+===== �����ݼ� n_samples / minority =====
+  Zeller: n=121 minority=1 y_count=[73, 48]
+  metahit: n=110 minority=1 y_count=[85, 25]
+  Chatelier: n=253 minority=0 y_count=[89, 164]
+
+===== adenoma_calibers n/minority =====
+  CRC_adenoma_as_healthy: n=121 minority=1 y_counts=[73, 48] note=�ھ��� �齡����Ĭ�����ھ�����n+small_adenoma=0��cancer=1
+  CRC_adenoma_as_diseased: n=121 minority=1 y_counts=[47, 74] note=�ھ��� �鲡�䣺cancer+small_adenoma=1��n=0
+  CRC_adenoma_excluded: n=95 minority=1 y_counts=[47, 48] note=�ھ��� �޳����޳� 26 �� small_adenoma��cancer=1/n=0
+  CRC_adenoma_separate: n=95 minority=1 y_counts=[47, 48] note=�ھ��� ����һ�ࣺsmall_adenoma ����������࣬26 ������������

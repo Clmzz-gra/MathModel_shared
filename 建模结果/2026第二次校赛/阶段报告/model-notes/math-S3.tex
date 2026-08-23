@@ -1,0 +1,493 @@
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+% STATUS: draft
+% LAST_MODIFIED: 2026-08-21
+
+\title{S3 数学推导——跨疾病预测模型（leave-one-disease-out 泛化评估）}
+\author{MathModel AI（建模对话 S3）}
+\date{2026-08-21}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+本文件是 S3（跨疾病预测模型）的数学推导，完整化 \texttt{approach-S3-confirmed.md} §4 数学框架。核心内容：leave-one-disease-out（LODO）协议形式化、四策略模型公式（A 直接迁移 / B 共享特征子集 / C 分类学聚合 / D Platt 校准）、Youden J 阈值迁移、AUC 与衰减量评估、紧急回退协议形式化（R1--R4）、三分法归因操作化，以及贯穿全程的防泄漏约束表达。本文件是 2.1 代码实现的规格依据，遵循 \texttt{math-explainer} 讲解质量约束全量 6 条。
+\end{abstract}
+
+\section{符号表}
+
+\begin{tabular}{lp{0.26\textwidth}p{0.38\textwidth}}
+\toprule
+符号 & 含义（读法） & 取值/分布 \\
+\midrule
+$\mathcal{D}=\{d_1,d_2,d_3\}$ & 三种疾病集合：CRC（Zeller）、IBD（metahit）、Obesity（Chatelier） & 3 个元素 \\
+$\mathcal{S}_d$ & 疾病 $d$ 的样本集 $\{(\mathbf{x}_i,y_i)\}_{i=1}^{n_d}$ & $n_{\text{CRC}}=121,\ n_{\text{IBD}}=110,\ n_{\text{Obesity}}=253$ \\
+$\mathbf{x}_i$ & 第 $i$ 个样本的物种级相对丰度向量（成分数据） & $\mathbf{x}_i\in\mathbb{R}^{p}$，$p=264$（近全零过滤后） \\
+$y_i$ & 第 $i$ 个样本的二分类标签（患病=1，健康=0） & $y_i\in\{0,1\}$ \\
+$\mathcal{T}_k,\ \mathcal{E}_k$ & 第 $k$ 组合的训练集 / 测试集 & $\mathcal{T}_k\cap\mathcal{E}_k=\varnothing$ \\
+$\text{clr}(\cdot)$ & 中心对数比变换（读作「CLR 变换」） & $\mathbb{R}^{p}\to\mathbb{R}^{p}$ \\
+$g(\mathbf{x})$ & 成分 $\mathbf{x}$ 的几何均值 & $g(\mathbf{x})=\left(\prod_j x_j\right)^{1/p}$ \\
+$\delta$ & CLR 零值乘法替换常数 & $\delta=6.5\times10^{-6}$ \\
+$\mathbf{w},\ b$ & Logistic 权重向量 / 截距 & $\mathbf{w}\in\mathbb{R}^{p},\ b\in\mathbb{R}$ \\
+$\sigma(\cdot)$ & sigmoid 函数（读作「逻辑斯蒂函数」） & $\sigma(t)=1/(1+e^{-t})$ \\
+$f(\mathbf{x})$ & 模型原始分数（logit） & $f(\mathbf{x})=\mathbf{w}^{\top}\mathbf{z}+b$ \\
+$\tau,\ \tau^{*}$ & 决策阈值 / Youden J 最优阈值 & $\tau\in\mathbb{R}$ \\
+$A,\ B$ & Platt 校准的尺度 / 平移参数 & $A<0,\ B\in\mathbb{R}$ \\
+$\text{TPR},\ \text{FPR},\ \text{TNR}$ & 真阳性率 / 假阳性率 / 真阴性率 & $[0,1]$ \\
+$\Delta_d$ & 疾病 $d$ 的跨疾病衰减量 & $\Delta_d\le 0$ \\
+\bottomrule
+\end{tabular}
+
+\section{LODO 协议形式化}
+
+\subsection{协议定义}
+
+\textbf{定义（leave-one-disease-out，读作「留一疾病」，记作 LODO）}：设三种疾病构成集合 $\mathcal{D}=\{d_1,d_2,d_3\}$，其中 $d_1=\text{CRC}$、$d_2=\text{IBD}$、$d_3=\text{Obesity}$。对每个被留出的疾病 $d_k$，构造一个「训练--测试」划分：
+
+$$
+\mathcal{T}_k = \bigcup_{d\neq d_k} \mathcal{S}_d, \qquad \mathcal{E}_k = \mathcal{S}_{d_k}, \qquad k=1,2,3
+$$
+
+即每次留一种疾病作测试集，其余两种疾病作训练集，共 3 个组合。三个组合如下：
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+组合 & 训练集（2 疾病） & 测试集（1 疾病） & 测试集正类占比 \\
+\midrule
+C1 & IBD + Obesity & CRC & 40\%（48 患病 / 73 健康） \\
+C2 & CRC + Obesity & IBD & 23\%（25 患病 / 85 健康，少数类） \\
+C3 & CRC + IBD & Obesity & 65\%（164 患病 / 89 健康，正类多数） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{硬约束（防泄漏语义）}
+
+\textbf{测试疾病在训练阶段完全不可见}：对组合 $k$，训练过程（特征选择、CLR 变换参数、StandardScaler 均值/方差、模型权重、阈值、校准参数）只能接触 $\mathcal{T}_k$ 的样本，$\mathcal{E}_k$ 的\textbf{标签与特征}均不参与任何训练步骤。这是「跨疾病」的诚实语义——模型面对的是一个它从未见过的疾病。
+
+\textbf{直觉解释（类比）}：好比一个医生只见过「A 病和 B 病患者 vs 正常人」，现在要他判断「C 病患者是不是病人」。他学到的「像病人」的直觉能复用多少，就决定跨疾病预测的成败。
+
+\section{数据预处理与 CLR 变换}
+
+\subsection{近全零过滤}
+
+物种级相对丰度矩阵高度稀疏（零值占比 92.21\%）。对每个物种特征 $j$，若其零值占比超过 95\%，则剔除该特征（三病并集统一口径，与 S1/S2 一致）：
+
+$$
+\mathcal{F}_{\text{keep}} = \left\{ j : \frac{1}{n}\sum_{i=1}^{n}\mathbf{1}[x_{ij}=0] \le 0.95 \right\}, \qquad p = |\mathcal{F}_{\text{keep}}| = 264
+$$
+
+其中 $\mathbf{1}[\cdot]$ 是指示函数（条件成立取 1，否则取 0），$n=484$ 为总样本数。过滤后 $p=1331\to264$。
+
+\subsection{CLR 变换（成分数据强制）}
+
+相对丰度是\textbf{成分数据}（每行丰度和 $\approx 100$，定和约束），直接进入欧式空间模型会引入伪相关。CLR 变换把成分映射到无约束的实数空间：
+
+$$
+\text{clr}(\mathbf{x})_j = \ln\left(\frac{x_j}{g(\mathbf{x})}\right), \qquad g(\mathbf{x}) = \left(\prod_{j=1}^{p} x_j\right)^{1/p}
+$$
+
+其中 $g(\mathbf{x})$ 是几何均值（所有物种丰度连乘后开 $p$ 次方）。CLR 的几何意义：把每个物种丰度除以「全体物种的典型水平」，再取对数，得到该物种相对「平均水平」的偏离。
+
+\subsection{零值处理（乘法替换）}
+
+零值（微生物未检出）不能直接取对数。采用乘法替换（AL-007 口径）：
+
+$$
+x_{ij} \leftarrow \delta = 0.65 \times \text{检出限} = 6.5\times10^{-6}, \qquad \text{当 } x_{ij}=0
+$$
+
+\textbf{为什么用乘法替换而非加伪计数}：乘法替换保持成分数据的定和结构（替换后仍可归一化），且 $\delta$ 取检出限的 0.65 倍是成分数据分析的惯例（低于检出限的合理下界估计）。
+
+\subsection{标准化（仅训练集估计）}
+
+CLR 后对每个特征做 StandardScaler（减均值、除标准差），但\textbf{均值与标准差只在训练集 $\mathcal{T}_k$ 上估计}，再应用到测试集 $\mathcal{E}_k$：
+
+$$
+z_{ij} = \frac{\text{clr}(\mathbf{x}_i)_j - \hat{\mu}_j^{(\mathcal{T}_k)}}{\hat{\sigma}_j^{(\mathcal{T}_k)}}
+$$
+
+其中 $\hat{\mu}_j^{(\mathcal{T}_k)},\ \hat{\sigma}_j^{(\mathcal{T}_k)}$ 是训练集上的样本均值/标准差。这是防泄漏的第一道约束（见 §11）。
+
+\section{策略 A：直接迁移（Logistic L2 + CLR）}
+
+\subsection{模型结构}
+
+策略 A 沿用 S1 已验证口径，是策略对比的\textbf{基线}。对每个 LODO 组合 $k$，在训练集 $\mathcal{T}_k$ 上拟合正则化 Logistic 回归：
+
+$$
+P(y=1 \mid \mathbf{x}) = \sigma\!\left(\mathbf{w}^{\top}\mathbf{z} + b\right) = \frac{1}{1+\exp\!\left(-\left(\mathbf{w}^{\top}\mathbf{z}+b\right)\right)}
+$$
+
+其中 $\mathbf{z}=\text{clr}(\mathbf{x})$ 经标准化后的特征向量，$\mathbf{w}$ 是权重向量，$b$ 是截距。原始分数（logit）记作 $f(\mathbf{x})=\mathbf{w}^{\top}\mathbf{z}+b$。
+
+\subsection{优化目标（L2 正则化 + 类别权重）}
+
+$$
+\min_{\mathbf{w},b}\ \frac{1}{2}\|\mathbf{w}\|_2^2 + C \sum_{i\in\mathcal{T}_k} w_i \left[ -y_i\ln\sigma(f(\mathbf{x}_i)) - (1-y_i)\ln\!\left(1-\sigma(f(\mathbf{x}_i))\right) \right]
+$$
+
+其中 $C=1.0$ 是正则化强度（$C$ 越大惩罚越弱），$w_i$ 是类别权重（\texttt{class\_weight='balanced'}，反比于类别频率），用于处理测试集类别不平衡（C2 少数类 23\%、C3 正类多数 65\%）。$\|\mathbf{w}\|_2^2$ 是 L2 惩罚项，抑制高维小样本下的过拟合。
+
+\textbf{为什么用 L2 而非 L1}：$p=264$ 特征、训练集仅约 200 样本，L2 惩罚对所有特征施加连续收缩（不稀疏化），在特征高度相关（物种丰度共线）时比 L1 更稳定；L1 会随机丢弃共线特征中的一部分，导致结果对数据扰动敏感。
+
+\section{策略 B：共享特征子集（跨疾病通用模型）}
+
+\subsection{共享特征集定义}
+
+设 $\mathcal{F}_d$ 为疾病 $d$ 在近全零过滤后保留的特征集合。三疾病的共享特征集为：
+
+$$
+\mathcal{F}_{\text{shared}} = \mathcal{F}_{\text{CRC}} \cap \mathcal{F}_{\text{IBD}} \cap \mathcal{F}_{\text{Obesity}}
+$$
+
+策略 B 在 $\mathcal{F}_{\text{shared}}$ 上重训策略 A 同款模型（Logistic L2 + CLR），重跑 LODO。A 类验证在 1331 全集上测得共享物种 344 个（三向 Jaccard 0.569）；正式实现基于过滤后 264 特征集重算交集，数量可能略减。
+
+\subsection{转导式边界显式声明（B5 裁定）}
+
+特征交集筛选\textbf{只使用特征存在性}（哪些物种在三数据集中都出现），\textbf{绝不用测试集标签}。这与 R3 重加权的转导式边界保持同一口径：可以用测试集的特征（存在性），但绝不用测试集的标签。
+
+\subsection{策略 B 的判定逻辑}
+
+- 若共享子集 AUC 显著高于全特征（策略 A）→ 全特征里的疾病特异噪声在拖后腿，通用模型可用。
+- 若共享子集 AUC 仍近随机 → 共享物种的\textbf{存在性}不承载可迁移信号（信号藏在\textbf{方向}里），记录并计入回退评估。
+
+\section{策略 C：分类学聚合（属级/门级 + CLR）}
+
+\subsection{聚合定义}
+
+利用分类学层级信息（题面注 2），把物种级特征聚合到属级（$g\_\_$）或门级（$p\_\_$）。对某个属 $g$，其聚合丰度为该属下所有物种丰度之和：
+
+$$
+x_g = \sum_{j:\ \text{species } j \in \text{genus } g} x_j
+$$
+
+聚合后维度大幅下降（物种 264 → 属级/门级更少），再对聚合后的成分做 CLR，重训 Logistic L2，重跑 LODO。
+
+\subsection{定位（如实报告不提升）}
+
+A 类验证 A4 已实测：物种 0.556 → 属 0.539 → 门 0.528（聚合不提升反略降）。策略 C 仍按正式策略完整跑 3 组合，\textbf{如实报告聚合不提升}——这是对题面注 2「可利用分类学信息」的显式交付：分类学信息已利用，实证无增益。
+
+\textbf{为什么聚合可能不提升}：聚合是「求和」操作，会抹平物种级的方向信息（同一属下既有「患病↑」又有「患病↓」的物种，求和后方向抵消），而跨疾病信号恰恰藏在物种级方向里（见 §10 三分法归因）。
+
+\section{策略 D：Platt 校准（部署校正模型）}
+
+\subsection{校准映射}
+
+策略 D 在策略 A/B/C 中 AUC 最优者上叠加 Platt 缩放，把原始分数 $f(\mathbf{x})$ 映射到校准概率：
+
+$$
+P_{\text{cal}}(y=1 \mid \mathbf{x}) = \frac{1}{1+\exp\!\left(A\cdot f(\mathbf{x}) + B\right)}
+$$
+
+其中 $A,B$ 是两个标量参数，\textbf{只在训练集上}用 Logistic 回归拟合（把训练集的原始分数 $f(\mathbf{x})$ 当作唯一特征、真实标签当作目标）。$A$ 控制分数尺度的缩放，$B$ 控制概率基线的平移。
+
+\subsection{为什么不改 AUC（单调性）}
+
+当 $A<0$ 时，$P_{\text{cal}}$ 是 $f$ 的\textbf{严格单调递增}函数，因此不改变样本的排序：
+
+$$
+f(\mathbf{x}_1) > f(\mathbf{x}_2) \iff P_{\text{cal}}(\mathbf{x}_1) > P_{\text{cal}}(\mathbf{x}_2)
+$$
+
+ROC 曲线只依赖排序，故 AUC 完全不变。Platt 校准修复的是「分数到概率的映射」——当训练集与测试集的患病概率基线不同（标签语义漂移）时，原始分数的阈值迁移会失准，校准后概率的阈值迁移更可靠。
+
+\subsection{$A<0$ 校验（B6 裁定）}
+
+实现时显式校验 $A<0$：若拟合得 $A\ge 0$（排序反转异常），触发警告并检查训练过程。$A<0$ 约束是「校准不改 AUC」成立的前提。
+
+\textbf{直觉解释（类比）}：好比温度计刻度不准——Platt 校准是「重新标定刻度」，让「分数 0.7」在两个数据集上都对应「70\% 患病概率」，但不会改变「谁比谁更可能患病」的排序。
+
+\section{阈值迁移：Youden J}
+
+\subsection{Youden J 统计量}
+
+\textbf{定义（Youden J，读作「约登 J」）}：对决策阈值 $\tau$，定义真阳性率与假阳性率：
+
+$$
+\text{TPR}(\tau) = P(f(\mathbf{x}) \ge \tau \mid y=1), \qquad \text{FPR}(\tau) = P(f(\mathbf{x}) \ge \tau \mid y=0)
+$$
+
+Youden J 统计量为灵敏度与特异度之和减 1：
+
+$$
+J(\tau) = \text{TPR}(\tau) + \text{TNR}(\tau) - 1 = \text{TPR}(\tau) - \text{FPR}(\tau)
+$$
+
+其中 $\text{TNR}(\tau)=1-\text{FPR}(\tau)$ 是真阴性率。Youden J 最优阈值为使 $J$ 最大的阈值：
+
+$$
+\tau^{*} = \arg\max_{\tau} J(\tau)
+$$
+
+几何上，$\tau^{*}$ 是 ROC 曲线上距离对角线（45° 线）最远的点。
+
+\subsection{阈值迁移规则（禁测试集重定）}
+
+$\tau^{*}$ \textbf{只在训练集 $\mathcal{T}_k$ 上估计}，然后原样搬到测试集 $\mathcal{E}_k$，报告该阈值下的 ACC / 灵敏度 / 特异度 / F1。\textbf{禁止在测试集上重定阈值}——那会用到新疾病标签，造成评估泄漏，违背 LODO 的「新疾病不可见」语义。
+
+\textbf{直觉解释}：Youden J 好比「既要抓得住病人、又要不冤枉健康人」的平衡点；把训练集上找到的这个平衡点搬到新疾病，看它还灵不灵——不灵（如 C3 灵敏度 0.006）就说明「患病概率的决策边界跨疾病不一致」。
+
+\section{评估指标：AUC 与衰减量}
+
+\subsection{AUC 定义}
+
+\textbf{定义（AUC，读作「曲线下面积」）}：ROC 曲线（横轴 FPR、纵轴 TPR）下方的面积，等价于「随机抽一个患者比随机抽一个健康人得分更高的概率」：
+
+$$
+\text{AUC} = \int_0^1 \text{TPR}\!\left(\text{FPR}^{-1}(t)\right)\, dt = P\!\left(f(\mathbf{x}_+) > f(\mathbf{x}_-)\right)
+$$
+
+其中 $\mathbf{x}_+$ 是随机正样本，$\mathbf{x}_-$ 是随机负样本。取值范围 $[0,1]$，0.5 表示与抛硬币无异（随机），1.0 表示完美区分。
+
+\textbf{为什么选 AUC 作主指标}：AUC \textbf{与阈值无关}——不需要决定「多高算患病」就能衡量区分能力，因此不依赖阈值迁移假设，是最诚实的跨疾病泛化度量。解读基准：0.80--0.90 良好、0.70--0.80 尚可、0.60--0.70 差、$<0.60$ 接近随机。
+
+\subsection{衰减量（跨疾病 − 域内）}
+
+对疾病 $d$，定义跨疾病衰减量为：
+
+$$
+\Delta_d = \text{AUC}_{\text{cross}}(d) - \text{AUC}_{\text{domain}}(d)
+$$
+
+其中 $\text{AUC}_{\text{cross}}(d)$ 是疾病 $d$ 作测试集时的跨疾病 AUC，$\text{AUC}_{\text{domain}}(d)$ 是疾病 $d$ 的域内 AUC（同疾病内训练测试）。$\Delta_d\le 0$ 表示跨疾病性能不高于域内。A 类验证参考值：CRC 衰减 $-0.232$、IBD 衰减 $-0.358$（最大）、Obesity 衰减 $-0.084$。
+
+\section{紧急回退协议形式化（2026-08-21 人类裁定）}
+
+\subsection{触发条件}
+
+设策略 $s\in\{\text{A,B,C,D}\}$ 的 3 组合 AUC 均值为 $\overline{\text{AUC}}_s$。触发条件：
+
+$$
+\overline{\text{AUC}}_s < 0.60, \qquad \forall s\in\{\text{A,B,C,D}\}
+$$
+
+即四策略的 3 组合 AUC 均值\textbf{全部}低于 0.60（接近随机线）时，触发紧急回退。
+
+\subsection{回退候选（R1--R4）}
+
+\begin{center}
+\begin{tabular}{lp{0.16\textwidth}p{0.20\textwidth}p{0.32\textwidth}}
+\toprule
+层级 & 候选模型族 & 思路 & 防泄漏约束 \\
+\midrule
+R1 & 树模型（RF / XGBoost） & 对零值/非线性鲁棒 & 特征选择在训练折内；超参仅训练集 \\
+R2 & 样本合并通用模型 & 学「通用生病信号」 & 测试疾病样本完全不可见 \\
+R3 & importance weighting & 密度比加权匹配测试分布 & 转导式边界（用测试特征、不用测试标签） \\
+R4 & 对抗式域适应（DANN） & 最后手段 & 严格验证集防泄漏 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{R3：importance weighting（密度比加权）}
+
+给训练样本加权，使加权后的训练分布逼近测试分布。权重为密度比：
+
+$$
+w(\mathbf{x}) = \frac{p_{\text{test}}(\mathbf{x})}{p_{\text{train}}(\mathbf{x})}
+$$
+
+其中 $p_{\text{test}},\ p_{\text{train}}$ 分别是测试/训练特征分布密度。密度比用 KLIEP 或 uLSIF 估计（代理值，见 \texttt{proxy-replacement-checklist-S3.md} \#3），并做权重裁剪（上界）防方差爆炸。加权后的经验风险：
+
+$$
+\min_{\mathbf{w},b}\ \sum_{i\in\mathcal{T}_k} w(\mathbf{x}_i)\, \ell\!\left(y_i, f(\mathbf{x}_i)\right)
+$$
+
+\textbf{转导式边界}：$w(\mathbf{x})$ 用到测试集特征（估计 $p_{\text{test}}$），但\textbf{绝不用测试集标签}。
+
+\subsubsection{R4：对抗式域适应（DANN 思想）}
+
+在特征提取器后加一个域判别器，通过梯度反转层（gradient reversal layer）让特征提取器学「域不变」特征。小样本过拟合风险最高，仅在 R1--R3 全败且时间允许时尝试。
+
+\subsection{可用线判定}
+
+回退候选 $r$ 判定为「可用」当且仅当满足其一：
+
+$$
+\overline{\text{AUC}}_r \ge 0.65 \quad \text{或} \quad \overline{\text{AUC}}_r - \overline{\text{AUC}}_{\text{A}} \ge 0.10
+$$
+
+即 3 组合 AUC 均值 $\ge 0.65$（超过 Obesity 域内地板 0.644，即「跨疾病不劣于最弱疾病的域内表现」），或相对策略 A 基线提升 $\ge 0.10$。
+
+\subsection{穷尽出口}
+
+R1--R4 全部不达标 → 报告最优策略 + 完整失败证据链（策略对比表 + 衰减归因 + 迁移模式 + 阈值漂移）。此时负结果才是经过回退流程验证后的最终结论，而非默认起点。
+
+\section{三分法归因操作化}
+
+\subsection{三个互斥来源}
+
+对每个低 AUC 组合，把失败归因到三个\textbf{互斥}来源，每个来源配一个可计算的定量证据：
+
+\begin{center}
+\begin{tabular}{lp{0.30\textwidth}p{0.30\textwidth}}
+\toprule
+来源 & 操作化定义 & 定量证据（A 类验证） \\
+\midrule
+批次效应 & 训练/测试来自不同研究/平台导致的分布偏移 & silhouette 系数 = 0.070（近 0，不主导） \\
+疾病特异信号 & 模型学的是训练疾病特有标志物 & 衰减量 $\Delta_d$，IBD 最大 $-0.358$ \\
+标签语义漂移 & 新疾病患病概率基线整体偏移 & C3 训练阈值迁移灵敏度 0.006 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{silhouette 系数（批次效应证据）}
+
+\textbf{定义（silhouette 系数，读作「轮廓系数」）}：对样本 $i$，设 $a(i)$ 为它到同簇其他样本的平均距离，$b(i)$ 为它到最近异簇样本的平均距离，则：
+
+$$
+s(i) = \frac{b(i) - a(i)}{\max\{a(i), b(i)\}}
+$$
+
+取值 $[-1,1]$，越接近 1 表示簇越清晰分离，越接近 0 表示簇重叠。数据集标签 silhouette 0.070 说明三数据集在低维空间\textbf{不清晰分簇}，即批次效应不主导全局结构。
+
+\subsection{疾病特异信号（衰减量证据）}
+
+用 $\Delta_d$ 量化：域内 AUC 强但跨疾病塌缩（IBD 域内 0.885 → 跨疾病 0.527，衰减 $-0.358$），说明模型学的是训练疾病特有标志物，对新疾病不适用。
+
+\subsection{标签语义漂移（基线差证据）}
+
+定义训练集与测试集的患病概率基线差：
+
+$$
+\Delta_{\text{baseline}} = \hat{P}_{\text{test}}(y=1) - \hat{P}_{\text{train}}(y=1)
+$$
+
+C3 组合中，训练阈值迁移后灵敏度仅 0.006（几乎全判健康），说明测试集患病概率基线整体偏移，决策边界失准。
+
+\textbf{直觉解释}：三分法好比医生误诊的三个可能原因——「仪器不同」（批次效应）、「这病和那病根本不是一回事」（疾病特异信号）、「判断标准整体偏了」（标签语义漂移）。实验证明主要是后两个，不是仪器问题。
+
+\section{防泄漏形式化}
+
+\subsection{约束表达}
+
+设 $\theta$ 为任意从数据估计的参数（特征选择、CLR 参数、StandardScaler 均值/方差、模型权重、Youden 阈值、Platt 参数、密度比）。防泄漏约束统一表达为：
+
+$$
+\theta = \theta(\mathcal{T}_k), \qquad \text{即 } \theta \text{ 只能是训练集 } \mathcal{T}_k \text{ 的函数}
+$$
+
+对每个 LODO 组合 $k$，以下参数\textbf{仅从训练集估计}：
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+参数 & 估计来源 & 泄漏风险（若违反） \\
+\midrule
+近全零过滤阈值 & 训练集（三病并集口径） & 用测试集零值占比会泄漏测试分布 \\
+CLR 零值替换 $\delta$ & 固定常数（S1 口径） & 无（非数据估计） \\
+StandardScaler 均值/方差 & 训练集 & 用测试集统计量泄漏测试分布 \\
+Logistic 权重 $\mathbf{w},b$ & 训练集 & 用测试标签直接泄漏 \\
+Youden 阈值 $\tau^{*}$ & 训练集 & 用测试标签重定阈值 = 评估泄漏 \\
+Platt 参数 $A,B$ & 训练集 & 用测试标签校准 = 泄漏 \\
+密度比 $w(\mathbf{x})$ & 训练+测试特征（转导式） & 用测试标签 = 泄漏 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{转导式边界的精确表述}
+
+R3 的密度比 $w(\mathbf{x})$ 是唯一「半监督」项：它可以用测试集\textbf{特征}（估计 $p_{\text{test}}$），但\textbf{绝不能用测试集标签}。形式化：
+
+$$
+w(\mathbf{x}) = w\!\left(\mathbf{x}; \{\mathbf{x}_i\}_{i\in\mathcal{T}_k\cup\mathcal{E}_k}\right), \qquad \text{不含 } \{y_i\}_{i\in\mathcal{E}_k}
+$$
+
+\section{数学自检}
+
+\subsection{回归方程自变量是否含因变量或代数变换}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+检查项 & 结论 \\
+\midrule
+自变量 $\mathbf{z}$ 是否含因变量 $y$？ & 否。$\mathbf{z}=\text{clr}(\mathbf{x})$ 只含物种丰度，不含标签 \\
+CLR 变换是否引入 $y$？ & 否。CLR 是特征空间内的几何变换，与标签无关 \\
+Platt 校准是否用 $y$ 作自变量？ & 否。$f(\mathbf{x})$ 是模型分数，$y$ 只作拟合目标 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{量纲一致性}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+项 & 变换前 & 变换后 \\
+\midrule
+$\mathbf{x}$ & 相对丰度（百分比，定和） & $\text{clr}(\mathbf{x})$（无量纲对数比） \\
+$f(\mathbf{x})$ & — & 无量纲 logit \\
+$P_{\text{cal}}$ & — & 概率 $[0,1]$ \\
+$\tau^{*}$ & — & 与 $f$ 同量纲（无量纲） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+所有项在 logit/概率尺度上量纲一致，通过量纲检查。
+
+\subsection{含 $\ln$/比值变换列原始→变换→注意点表}
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+变量 & 原始 & 变换 & 注意点 \\
+\midrule
+物种丰度 $x_j$ & 百分比 $[0,100]$ & $\ln(x_j/g(\mathbf{x}))$ & 零值须先乘法替换 $\delta$，不能直接 $\ln 0$ \\
+几何均值 $g(\mathbf{x})$ & 百分比 & $\left(\prod x_j\right)^{1/p}$ & 含零值时须先替换，否则 $g=0$ \\
+模型分数 $f$ & logit & Platt sigmoid & $A<0$ 保证单调，否则排序反转 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{方案讲解质量自检（math-explainer 6 条）}
+
+\begin{enumerate}
+\item \textbf{先定义再使用}：LODO / CLR / AUC / Youden J / Platt 校准 / silhouette 系数 / 三分法归因 / 标签语义漂移 / 密度比均首次出现给定义与读法。
+\item \textbf{每步有「因为」}：主指标选 AUC（阈值无关最诚实）、L2 而非 L1（共线特征下更稳定）、聚合不提升（求和抹平方向信息）、Platt 不改 AUC（单调变换保排序）均显式给理由。
+\item \textbf{多视角}：几何（AUC=ROC 下面积、Youden J=45° 线最远点、CLR=对数比偏离）、生物学（疾病特异信号=共享物种方向翻转）、统计（silhouette 近 0=不清晰分簇）三视角。
+\item \textbf{核心洞察收束}：见 §15。
+\item \textbf{直觉解释}：§2 医生类比、§7 温度计刻度类比、§8 Youden J 平衡点类比、§10 医生误诊三原因类比。
+\item \textbf{防跳跃}：需展开概念点见 §16。
+\end{enumerate}
+
+\section{假设检验计划}
+
+\begin{center}
+\begin{tabular}{p{0.28\textwidth}p{0.30\textwidth}p{0.30\textwidth}}
+\toprule
+假设 & 检验方法 & 预期结果 \\
+\midrule
+H2 失败主因是疾病特异信号+标签漂移 & 衰减量 $\Delta_d$ 排序 + silhouette 0.070 & IBD 衰减最大、silhouette 近 0 \\
+H3 共享物种方向承载疾病特异信号 & 方向一致性分析 + 符号检验/置换检验 & 方向翻转占比显著 \\
+H4 Platt 校准修复可部署指标 & 校准前后 ACC/F1/灵敏度对比 & 校准后辅指标提升、AUC 不变 \\
+H5 属级聚合不提升 & 物种/属/门 AUC 对比 & 0.556→0.539→0.528 略降 \\
+H6 回退候选存在可用模型 & R1--R4 各 AUC 均值 vs 可用线 & 达 0.65 或提升 0.10 即交付 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{方向一致性分析（深度迁移）}：对共享物种，计算每个物种在训练疾病与测试疾病中的「患病 vs 健康」丰度变化方向，分「方向一致（可迁移）」与「方向翻转（疾病特异）」两类，配符号检验/置换检验（不裸报描述统计）。
+
+\section{核心洞察收束}
+
+\textbf{本问解决什么、怎么做、为什么}：S3 解决「模型到新疾病上还灵不灵」——正面回答是「建立跨疾病预测模型」：正式构建并对比四种策略（A 直接迁移 / B 共享特征 / C 分类学聚合 / D Platt 校准），选出最优者交付；若四策略 AUC 均值全部 $<0.60$，触发紧急回退（R1 树模型 → R2 样本合并 → R3 密度比加权 → R4 对抗式域适应），达可用线（$\ge0.65$ 或提升 $\ge0.10$）即交付，穷尽后以完整证据链报告。归因分析（三分法）是「为什么差」的解释层，不是替代「建立模型」的答案。
+
+\section{可能需展开的概念点（供后续追问）}
+
+\begin{itemize}
+\item AUC 的几何含义与 ROC 曲线构造（FPR/TPR 如何随阈值扫描）。
+\item CLR 变换的数学定义与零值乘法替换（AL-007）的完整推导。
+\item Youden J 阈值的求解（ROC 上 45° 线最远点的数值实现）。
+\item Platt 缩放与温度缩放（temperature scaling）的区别。
+\item importance weighting 的密度比估计（KLIEP/uLSIF）与转导式边界。
+\item 方向一致性分析的符号检验/置换检验方法。
+\end{itemize}
+
+\end{document}

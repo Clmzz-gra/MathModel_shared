@@ -1,0 +1,259 @@
+% STATUS: done
+% LAST_MODIFIED: 2026-08-21
+% ============================================================
+% S1 疾病预测模型 —— 报告内容段（阶段 2.3）
+% 数字一律取自 outputs/data/S1-results.pkl（只读提取），不抄 handoff；
+% 溯源/字段路径见独立写作素材 writing-material-sub1.tex，正文不承载。
+% 图表占位符含（数据源 pkl+字段、图名、论文位置）规格说明。
+% 表述库映射：各节标注可用模板 ID（knowledge/expression-library-parts-*.md）。
+% ============================================================
+\documentclass{internal-report}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+
+\title{第二次模拟赛 B 题 S1 子问题：疾病预测模型（内部报告内容段）}
+\author{报告对话}
+\date{2026-08-21}
+
+\begin{document}
+\maketitle
+
+% ------------------------------------------------------------
+% 符号表（自足性规则：正文首次出现处另有内嵌定义，此处汇总速查）
+% ------------------------------------------------------------
+\begin{table}[ht]
+\centering
+\caption{S1 模型符号说明（自足性符号表；正文首次出现处均有内嵌定义）}
+\begin{tabular}{c l l}
+\toprule
+\textbf{符号} & \textbf{定义} & \textbf{首次出现} \\
+\midrule
+$n$ & 某数据集的样本总数（Zeller 121、metahit 110、Chatelier 253） & §2.1 \\
+$p$ & 物种级特征列数（原始 1331，近全零过滤后 264） & §2.1 \\
+$x_{ij}$ & 样本 $i$ 第 $j$ 物种相对丰度，$i=1,\dots,n$，$j=1,\dots,p$ & §2.1 \\
+$\delta$ & 零值乘法替换伪值（检出限 0.65 倍，$\delta=6.5\times10^{-6}$） & §2.2 \\
+$g_i$ & 样本 $i$ 的几何均值 & §2.2 \\
+$\mathrm{clr}(x_{ij})$ & 中心化对数比变换值 & §2.2 \\
+$\mathbf{w}$ & Logistic 回归系数向量（长度 $p$） & §3.1 \\
+$b$ & Logistic 回归偏置项 & §3.1 \\
+$z_i$ & 线性得分 $z_i=\mathbf{w}^{\top}\mathrm{clr}(\mathbf{x}_i)+b$ & §3.1 \\
+$\sigma(z)$ & sigmoid 函数 $\sigma(z)=1/(1+e^{-z})$ & §3.1 \\
+$y_i$ & 样本 $i$ 真实标签（患病=1 / 健康=0） & §3.1 \\
+$\lambda$ & L2 正则强度 & §3.1 \\
+$C$ & 正则强度倒数 $C=1/\lambda$（取 $C=1.0$） & §3.1 \\
+$w_c$ & 类别 $c$ 的样本权重（class\_weight） & §3.1 \\
+$K$ & 分层交叉验证折数 $K=5$ & §3.4 \\
+\toprule
+\textbf{跨问/实验代号} & \textbf{指代} & \textbf{首次出现} \\
+\midrule
+S2 过滤标准 & S2 特征选择子问题的近全零过滤标准（三病并集 264 特征） & §2.2 \\
+B2 集成 & 阶段 1.2 方案辩论 B 类分歧 2（两法 AUC 均 $\geq 0.75$ 时做 Soft Voting） & §3.5 \\
+small\_adenoma 四种方案 & 阶段 1.3 本文（Zeller 腺瘤四种方案敏感性分析） & §4.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ------------------------------------------------------------
+\section{本问要解决什么}
+\label{sec:intro}
+
+本节约一句话：S1 为三个宏基因组数据集各建一个「患病 vs 健康」二分类判别模型并诚实评估其性能，为后续跨疾病分析提供基准。
+
+\subsection{任务转述与定位}
+S1 对应赛题第一问。本问以物种级相对丰度为特征，对三个数据集（结直肠癌、炎症性肠病、肥胖症）各自构造二分类标签（患病=1 / 健康=0），训练判别模型，并回答两个问题：（1）各数据集模型预测性能如何；（2）三数据集性能差异从何而来。本问是 S2 特征选择、S3 跨疾病预测的基础：其性能基准与特征标准被后问复用（见 §2.2 过滤标准说明）。
+
+\subsection{问题类型与评估方式}
+按题型决策树判定，S1 为预测类（二分类）问题，命中「分类评估路径」。主指标为 AUC，辅以少数类 F1 与 Recall；ACC 仅作参考。评估方式说明：跨数据集横向比较只比「相对基线的增益」，不比绝对 AUC（批次效应强，见 §5.4）。三数据集样本量分别为 Zeller 121、metahit 110、Chatelier 253，其中 metahit 类别最不平衡（少数类占比 22.7\%），详见 §2.1。
+
+\textbf{表述库映射}：1.1-1 问题定位句、1.2-6 识别式定位（"实际上是一个分类问题"）、5.1-48 问题背景引入、5.1-49 问题重述（转述题意）。
+
+% ------------------------------------------------------------
+\section{数据与预处理}
+\label{sec:data}
+
+本节约一句话：数据为清洗后的三数据集相对丰度，需按统一标准做标签映射、近全零过滤与 CLR 变换，才能进入线性模型。
+
+\subsection{数据来源与结构}
+数据源为共享清洗产出（float32），含数据集名、疾病标签两元数据列与物种级相对丰度特征列。三数据集样本构成如下：Zeller 结直肠癌 $n=121$（健康 73、患病 48，少数类为患病，占比 39.7\%）；metahit 炎症性肠病 $n=110$（健康 85、患病 25，少数类为患病，占比 22.7\%）；Chatelier 肥胖症 $n=253$（健康 89、患病 164，少数类为健康，占比 35.2\%）。metahit 类别最不平衡，其 ACC 会因多数类主导而虚高，故评估以 AUC 与少数类指标为准。
+\textbf{标准声明（禁写句）}：A 类验证（float64 原始数据）仅作参考，正式数字一律以 S1 结果文件（float32）落盘为准，本报告不采用 A 类验证数值。
+
+\subsection{标签映射与方案}
+三数据集标签映射统一为患病=1 / 健康=0：结直肠癌 \texttt{cancer}（健康为 \texttt{n}）、炎症性肠病为两种亚型并集、肥胖症 \texttt{obesity}。各数据集少数类比例见 §2.1（Zeller 39.7\%、metahit 22.7\%、Chatelier 35.2\%）。
+\textbf{small\_adenoma 四种方案（阶段 1.3 本文）}：Zeller 数据集含 26 例 \texttt{small\_adenoma} 样本，本文全做四种方案敏感性分析——归健康、归病变、剔除、单开一类。四种方案结果见 §4.2，默认主方案为方案(1)（归健康）已落盘，最终主方案从结果择优（性能+可解释性）。
+
+\subsection{近全零过滤（与 S2 标准统一）}
+剔除零值占比 $>95\%$ 的特征，从原始 1331 维降至 264 维（剔除 1067 维）。过滤标准与 S2 统一（三病并集同一特征集），保证特征维度在本子问题与后续子问题一致。
+
+\subsection{CLR 变换（成分数据前置）}
+相对丰度为定和成分数据（每行和 $\approx 100$），进入线性模型前需 CLR 变换解除定和偏相关（H1：成分数据定和偏相关假设，即每行和为定值使特征间产生伪相关）。两步：零值乘法替换 $x_{ij}\leftarrow\max(x_{ij},\delta)$（$\delta$ 为检出限 0.65 倍，$\delta=6.5\times10^{-6}$）→ 逐行几何均值中心化 $\mathrm{clr}(x_{ij})=\ln x_{ij}-\frac{1}{p}\sum_{k}\ln x_{ik}$。CLR 仅主模型 L2 需要，RF 对照用原始丰度。CLR 相对原始丰度的定量增益无实证值（结果文件未落盘该字段），正文不写具体增益。
+
+\textbf{表述库映射}：8.1-58 预处理节总起、8.1-59 数据来源与结构描述、8.2-62 数据剔除/筛选（近全零过滤）、8.3-64 数据变换、8.3-65 变换直观解释、8.2-60 缺失/异常值处理（零值乘法替换）。
+
+% ------------------------------------------------------------
+\section{模型构建}
+\label{sec:model}
+
+本节约一句话：以 Logistic(L2)+CLR 为主模型、随机森林为对照、单特征最佳阈值+Dummy 为基线，统一在分层 5 折 CV 下评估，并以 LOOCV 兜底诚实估计。
+
+\subsection{主模型：Logistic(L2)+CLR}
+概率输出分类器，线性得分与 sigmoid 概率（见符号表）。L2 惩罚 $\frac{\lambda}{2}\lVert\mathbf{w}\rVert_2^2$ 抗小样本过拟合（$n\ll p$）。实现 $C=1.0$（$\lambda=1.0$），并启用 \texttt{class\_weight='balanced'} 缓解类别不平衡。动机句：小样本高维下线性模型可解释、系数方向可为 S2/S3 铺垫，L2 收缩防过拟合。
+
+\subsection{对照模型：随机森林（原始丰度）}
+RF（500 棵树）直接输入过滤后原始丰度（含高比例零值，免 CLR），作为非线性对照；特征重要性用 permutation importance（复用 S2 标准）。动机句：提供非线性基准，检验线性 CLR 主模型是否因成分数据处理而更优。
+
+\subsection{基线（性能下界）}
+单特征最佳阈值（逐特征扫阈值取 AUC 最大）+ Dummy 多数类分类器，作为性能下界，防止过度设计。
+
+\subsection{评估框架}
+分层 5 折 CV（$K=5$, seed=42），主指标 AUC + ACC + 少数类 F1/Recall。LOOCV 兜底：过拟合判定采用「5 折 CV AUC 与 LOOCV AUC 差距」评估方式（三数据集差距 0.014/0.012/0.023，均 $<0.025$，模型稳定）；全量 AUC 恒为 1.0 是 $n\ll p$ 下样本内拟合的必然现象，不作过拟合判据（详见 §4.3）。
+
+\subsection{集成（条件触发）}
+B2 裁定：若主模型 L2(CLR) 与对照 RF 两方法 AUC 均 $\geq 0.75$，则做 Soft Voting 集成（概率平均）对比单最佳；否则单最佳即交付。B2 触发与集成增益见 §4.4，结论为不做集成。
+
+\textbf{表述库映射}：9.1-68 预测模型选型论证、9.1-69 预测建模流程、2.1-18 对比排除论证（模型比较）、2.3-28 求解器/软件选型。
+
+% ------------------------------------------------------------
+\section{结果}
+\label{sec:result}
+
+本节约一句话：报告三数据集各模型性能、small\_adenoma 四种方案敏感性、特征重要性、阈值分析与集成结果；数字取自 S1 结果文件。
+
+\subsection{三数据集性能表}
+主模型（L2+CLR）、对照（RF）、基线（单特征+Dummy）的 AUC/ACC/少数类 F1/Recall 汇总见表 \ref{tab:perf}。数据源：S1 结果文件（三数据集主模型、对照模型与基线结果；溯源见写作素材关键数字表）。
+
+\begin{table}[ht]
+\centering
+\caption{三数据集性能汇总（5 折 CV，seed=42；数据源 S1 结果文件）}
+\label{tab:perf}
+\begin{tabular}{l l c c c c}
+\toprule
+数据集 & 模型 & AUC & ACC & F1(少数类) & Recall(少数类) \\
+\midrule
+Zeller & L2(CLR) & 0.791 & 0.727 & 0.640 & 0.600 \\
+Zeller & RF(原始) & 0.845 & 0.785 & 0.678 & 0.580 \\
+metahit & L2(CLR) & 0.887 & 0.864 & 0.672 & 0.640 \\
+metahit & RF(原始) & 0.904 & 0.818 & 0.352 & 0.240 \\
+Chatelier & L2(CLR) & 0.650 & 0.648 & 0.518 & 0.528 \\
+Chatelier & RF(原始) & 0.660 & 0.644 & 0.094 & 0.056 \\
+\midrule
+各数据集 & 单特征基线 & 0.758/0.815/0.639 & — & — & — \\
+各数据集 & Dummy(多数类) & 0.500 & 0.603/0.773/0.648 & — & — \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+三数据集主模型 L2(CLR) 的 AUC 分别为 Zeller 0.791、metahit 0.887、Chatelier 0.650。RF 对照在 Zeller 与 metahit 上均优于 L2（0.845 vs 0.791、0.904 vs 0.887），在 Chatelier 上略优（0.660 vs 0.650）。metahit 的 RF 少数类 F1/Recall 极低（0.352/0.240），Chatelier 的 RF 更低（0.094/0.056），源于 RF 未加 \texttt{class\_weight} 且默认阈值 0.5 对不平衡数据次优；AUC 为阈值无关的诚实指标。
+
+\subsection{small\_adenoma 四种方案敏感性}
+Zeller 腺瘤四种方案（归健康/归病变/剔除/单开一类）的主模型与对照 AUC 对比见表 \ref{tab:adenoma}。数据源：S1 结果文件（Zeller 腺瘤四种方案敏感性；溯源见写作素材关键数字表）。
+
+\begin{table}[ht]
+\centering
+\caption{Zeller small\_adenoma 四种方案敏感性（数据源 S1 结果文件）}
+\label{tab:adenoma}
+\begin{tabular}{l c c c}
+\toprule
+方案 & L2 AUC & RF AUC & 样本数 $n$ \\
+\midrule
+(1) 归健康（默认主方案） & 0.791 & 0.845 & 121 \\
+(2) 归病变 & 0.611 & 0.651 & 121 \\
+(3) 剔除 & 0.802 & 0.867 & 95 \\
+(4) 单开一类 & 0.802 & 0.867 & 95 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+方案(2)（归病变）显著劣化（L2 AUC 由 0.791 降至 0.611，掉 0.18），说明 small\_adenoma 混入病变会污染正类，应排除。方案(3)/(4)（剔除）略优于方案(1)（L2 +0.011、RF +0.022），但 $\Delta$AUC $<0.05$，差异不显著。默认主方案为(1)（归健康）已落盘；最终主方案由建模/本文从性能与可解释性择优（方案(3)/(4) 剔除略优但差异不显著，维持默认方案(1)）。
+
+\subsection{LOOCV 兜底}
+全量 AUC vs LOOCV AUC 对照见表 \ref{tab:loocv}，用于过拟合诚实估计。数据源：S1 结果文件（LOOCV 兜底；溯源见写作素材关键数字表）。
+
+\begin{table}[ht]
+\centering
+\caption{LOOCV 兜底对照（数据源 S1 结果文件）}
+\label{tab:loocv}
+\begin{tabular}{l c c c c}
+\toprule
+数据集 & 5 折 CV AUC(L2) & LOOCV AUC & 差距 & 全量 AUC \\
+\midrule
+Zeller & 0.791 & 0.804 & $-0.014$ & 1.000 \\
+metahit & 0.887 & 0.875 & $+0.012$ & 1.000 \\
+Chatelier & 0.650 & 0.627 & $+0.023$ & 1.000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+5 折 CV AUC 与 LOOCV AUC 差距均 $<0.025$，模型稳定无过拟合。全量 AUC 恒为 1.000 是 $n\ll p$（264 特征 vs 110--253 样本）下样本内拟合的必然现象，非模型缺陷。
+
+\subsection{集成结果（条件触发）}
+B2 条件触发判定：Zeller 与 metahit 两法 AUC 均 $\geq 0.75$，触发 Soft Voting；Chatelier 的 L2 AUC 0.650 $<0.75$，不触发。触发两数据集的集成 AUC 均不优于单最佳（表 \ref{tab:ensemble}），故不做集成，单最佳（RF）即交付。数据源：S1 结果文件（Soft Voting 集成；溯源见写作素材关键数字表）。
+
+\begin{table}[ht]
+\centering
+\caption{Soft Voting 集成 vs 单最佳（数据源 S1 结果文件）}
+\label{tab:ensemble}
+\begin{tabular}{l c c c c c}
+\toprule
+数据集 & 集成 AUC & 单最佳 AUC & $\Delta$AUC & 是否受益 & 结论 \\
+\midrule
+Zeller & 0.838 & 0.845(RF) & $-0.008$ & 否 & 不做集成 \\
+metahit & 0.896 & 0.904(RF) & $-0.008$ & 否 & 不做集成 \\
+Chatelier & — & 0.660(RF) & — & 不触发 & 单最佳交付 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{特征重要性（支撑 S2 铺垫）}
+主模型 L2 系数（CLR 空间）的 Top 特征按 $|\text{系数}|$ 排序，各数据集前几位如下（数据源：S1 结果文件与预处理文件；溯源见写作素材关键数字表）：
+\begin{itemize}
+  \item Zeller：\texttt{Peptostreptococcus\_stomatis}（$+0.285$）、\texttt{Fusobacterium\_nucleatum}（$+0.245$）、\texttt{Lachnospiraceae\_bacterium\_1\_4\_56FAA}（$-0.188$）等；
+  \item metahit：\texttt{Parabacteroides\_unclassified}（$-0.196$）、\texttt{Alistipes\_finegoldii}（$-0.187$）、\texttt{Coprococcus\_sp\_ART55\_1}（$-0.175$）等；
+  \item Chatelier：\texttt{Pseudoflavonifractor\_capillosus}（$-0.542$）、\texttt{Coriobacteriaceae\_bacterium\_phI}（$-0.444$）、\texttt{Porphyromonas\_asaccharolytica}（$+0.439$）等。
+\end{itemize}
+RF permutation importance 在三数据集上均退化为接近 0（量级 $10^{-17}$），无法提供有效排序，原因待建模解释（RF permutation importance 退化，不影响以 L2 系数为特征方向）；特征方向以 L2 系数为准，供 S2/S3 参考。
+
+\textbf{表述库映射}：3.1-30 数值先导+表格引出、9.1-70 预测结果评估、3.2-34 指标比较论证。
+
+% ------------------------------------------------------------
+\section{跨疾病差异归因分析}
+\label{sec:attribution}
+
+本节约一句话：三数据集绝对性能不可直接横向比，需从样本量、类别平衡、信号强度、批次效应四重来源归因差异。
+
+\subsection{归因框架总起}
+动机句：三数据集样本量、类别不平衡度、信号强度不同且存在批次效应，直接比绝对 AUC 有误导，故按四重来源归因。各数据集样本量、类别比例、基线 AUC 见 §2.1 与 §4.1。
+
+\subsection{来源一：样本量}
+三数据集样本量分别为 Zeller 121、metahit 110、Chatelier 253。AUC 95\% 置信区间（按 5 折标准差近似）：Zeller L2 $0.791\pm0.090$（$[0.701,0.880]$）、metahit L2 $0.887\pm0.062$（$[0.825,0.949]$）、Chatelier L2 $0.650\pm0.063$（$[0.587,0.713]$）（置信区间由结果文件精确值计算，个别与表内四舍五入值复算有 0.001 级出入）。Zeller 与 metahit 的置信区间在 $[0.825,0.880]$ 重叠，二者 AUC 差异（0.791 vs 0.887）在统计上不显著，需谨慎解读；Zeller 区间最宽（$\pm0.090$），其与 metahit 的差异部分可能落入噪声。Chatelier 区间与 metahit 不重叠，显著低于 metahit。
+
+\subsection{来源二：类别平衡}
+少数类比例：Zeller 39.7\%、metahit 22.7\%、Chatelier 35.2\%。metahit 最不平衡，其 ACC（L2 0.864）明显高于少数类 Recall（0.640），反映多数类主导下的 ACC 虚高；Chatelier 的 RF 少数类 Recall 仅 0.056，几乎全预测多数类。类别不平衡是 metahit 与 Chatelier 少数类指标偏低的重要来源。
+
+\subsection{来源三：信号强度}
+单特征基线 AUC（样本内乐观上界，性能地板）：Zeller 0.758、metahit 0.815、Chatelier 0.639。Chatelier 基线最低，接近领域下界 0.65--0.75（领域基准：肥胖症已知标志物 AUC 0.65--0.75，见领域知识），说明其特征判别信息最弱；metahit 基线最高，信号最强。
+
+\subsection{来源四：批次效应}
+批次效应使三数据集不可横向比绝对 AUC，只比「相对基线的增益」。各数据集相对基线增益：L2 为 Zeller $+0.033$、metahit $+0.072$、Chatelier $+0.010$；RF 为 Zeller $+0.087$、metahit $+0.088$、Chatelier $+0.021$（增益由结果文件精确值计算，非表内四舍五入值直接相减，个别与表内复算有 0.001 级出入）。Chatelier 多特征增益极小（L2 仅 $+0.010$），确认其弱信号、接近领域下界。
+
+\textbf{表述库映射}：3.2-35 趋势演进论证、3.2-36 方案与预期吻合论证、3.2-34 指标比较论证。
+
+% ------------------------------------------------------------
+\section{结论与局限}
+\label{sec:conclusion}
+
+本节约一句话：总结本问交付与关键结论，声明标准边界与真实局限。
+
+\subsection{结论}
+S1 交付三数据集各自的二分类判别模型与诚实性能评估，并给出跨疾病差异的四重归因结论。主方案（方案(1)，small\_adenoma 归健康）下，L2(CLR) AUC 为 Zeller 0.791、metahit 0.887、Chatelier 0.650；RF 对照在 Zeller 与 metahit 上更优（0.845、0.904），Chatelier 上略优（0.660）。集成不优于单最佳，单最佳（RF）即交付。跨疾病差异归因：metahit 信号最强（基线 0.815、增益最大）、Chatelier 信号最弱（基线 0.639、增益最小、接近领域下界）、metahit 类别最不平衡（少数类 22.7\%）。
+跨问衔接说明：本问性能基准与特征标准（近全零过滤 1331→264）供 S2 特征选择复用，特征方向（L2 系数 Top 特征）供 S3 跨疾病预测参考。
+
+\subsection{局限}
+本问存在真实方法局限，需在模型评价处明确标注：小样本下 AUC 方差大（差异可能落入噪声，如 Zeller 置信区间最宽 $\pm0.090$）；Chatelier 弱信号接近领域下界（L2 相对基线增益仅 $+0.010$）；批次效应限制跨数据集横向比绝对 AUC（只比相对基线增益）；RF 未加 \texttt{class\_weight} 导致少数类 F1/Recall 极低（metahit 0.352/0.240、Chatelier 0.094/0.056），AUC 为阈值无关的诚实指标。
+表述库映射：6.1-53 总结全文、6.2-54 分问结论、6.3-55 不足与展望、4.2-42 数据/简化局限、4.2-43 方法/计算局限。
+
+% ------------------------------------------------------------
+% 写作素材见 writing-material-sub1.tex（独立文件，供队友阶段 4 写作）
+% READER-AUDIT: 见 reader-audit-sub1.md
+\end{document}

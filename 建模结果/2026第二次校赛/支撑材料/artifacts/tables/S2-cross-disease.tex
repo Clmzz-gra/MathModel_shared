@@ -1,0 +1,18 @@
+% S2 跨疾病对比表 — 数据源 outputs/data/S2-results.pkl (cross_disease)
+\begin{table}[htbp]
+\centering
+\caption{S2 三病稳定标志物跨疾病对比（Jaccard 重叠）}
+\label{tab:s2-cross-disease}
+\small
+\begin{tabular}{lccc}
+\toprule
+ & CRC & IBD & Obesity \\
+\midrule
+CRC & 4 & 0.0 & 0.0 \\
+IBD & 0.0 & 4 & 0.0 \\
+Obesity & 0.0 & 0.0 & 20 \\
+\bottomrule
+\end{tabular}
+\par\footnotesize
+注：对角线为各病稳定标志物数；非对角线为 Jaccard 重叠系数。三病稳定特征集完全疾病特异，无共同标志物（common\_biomarkers 为空）。
+\end{table}

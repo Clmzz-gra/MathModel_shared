@@ -1,0 +1,987 @@
+% =====================================================================
+% 华数杯 2026 第二次模拟赛 B 题终稿
+% 赛题：基于宏基因组数据的疾病预测模型研究
+% 编译器：xelatex；正文数字唯一出口：solution/data-final/data-integration-2026-sim2-B.md
+% =====================================================================
+\documentclass{../../latex/templates/mcm-paper}
+
+\input{preamble-common.tex}
+\graphicspath{{figures/}}
+
+\title{基于宏基因组数据的疾病预测模型研究}
+\date{2026年8月}
+
+\begin{document}
+
+\summarystart
+\input{summary-sheet.tex}
+
+\maincontentstart
+
+\input{introduction.tex}
+\input{assumptions.tex}
+\input{notation.tex}
+
+\section{模型构建}
+\label{sec:models}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.62\textwidth]{flow-overview.pdf}
+\caption{三个子问题整体技术路线：统一数据处理后依次完成疾病预测、标志物筛选与跨疾病评估。}
+\label{fig:workflow}
+\end{figure}
+
+统一的数据处理将三项任务连接为一条可复核的建模链路：先在三病并集上完成近全零过滤与 CLR 变换，再分别进行域内疾病预测、稳定标志物筛选和跨疾病泛化评估，总体技术路线如图 \cref{fig:workflow} 所示。
+
+\subsection{第一问：疾病预测模型}
+\label{sec:s1-model}
+本题提供484个公开宏基因组样本，涵盖结直肠癌（Zeller，$n=121$）、炎症性肠病（metahit，$n=110$）与肥胖症（Chatelier，$n=253$）三种疾病，每个样本以 1331 个物种水平的相对丰度描述其肠道菌群结构。针对第一问，本文为三个数据集各建立一个「患病 vs 健康」的二分类判别模型：先对高维稀疏的相对丰度做近全零过滤与 CLR 变换，再以 Logistic(L2) 回归为主模型、随机森林为对照、单特征最佳阈值与 Dummy 多数类为基线，采用统一的分层 5 折交叉验证框架诚实评估性能，为后续跨疾病分析提供性能基准。
+
+\subsubsection{模型构建}
+\label{sec:s1-build}
+
+本题特征维度高达1331，而患病样本量仅为$110\sim253$，这属于典型的高维稀疏小样本问题，在此维度上建立线性模型必然过拟合。更为重要的是，物种相对丰度是定和成分数据（每行之和$\approx 100$），成分之间“此消彼长”，若直接输入线性模型，定和约束可能会制造出结构性伪相关，导致系统方向失真。因此，本文先做近全零过滤剔除判别信息微弱的高零值特征，再用中心对数比（CLR）变换解除定和约束，之后才以 Logistic(L2)+按类别样本量反比设权 为主模型、随机森林为对照、单特征最佳阈值与 Dummy 多数类为基线进入建模环节。
+
+\paragraph{数据预处理：近全零过滤与 CLR 变换}
+
+原始特征共1331个物种特征，其中1067个在超过95\%的样本中取值为0，几乎不携带判别信息。如果保留这些特征，就容易稀释后续线性模型的信号并放大噪声。本文按零值占比 $z_j>95\%$的标准剔除这类近全零特征，使原始的1331维降低到264维；该过滤在三个数据集上采用统一的并集特征标准，与第二问特征选择保持一致，确保后续疾病比较建立在同一特征空间上。
+
+零值占比 $z_j$ 定义为第 $j$ 个物种特征中取值为 0 的样本比例，保留特征当且仅当 $z_j \le 0.95$：
+
+\begin{equation}
+\begin{aligned}
+  z_j &= \frac{1}{n}\sum_{i=1}^{n}\mathbf{1}[x_{ij}=0], \\
+  \mathcal{J}_{\text{keep}} &= \big\{ j \in \{1,\dots,p_0\} : z_j \le 0.95 \big\},
+  \qquad p = |\mathcal{J}_{\text{keep}}| = 264.
+\end{aligned}
+\label{eq:s1-filter}
+\end{equation}
+
+相对丰度是定和成分数据，各丰度间因定和约束“此消彼长”而产生结构性伪相关。例如，优势物种丰度升高必然压低其余物种的占比，这种负相关并非真实的生物学关系，直接采用线性模型会使系数方向失去意义。CLR变换把“加起来等于100的成分”翻译成“相对本样本平均水平的对数比”，从而解除定和偏相关，使变换后的各特征在统计上可比、线性模型系数可解释。
+
+CLR 变换分两步：先做零值乘法替换（$92.21\%$ 零值无法取对数，需给一个低于检出限的伪值），再逐行几何均值中心化：
+
+\begin{equation}
+x_{ij} \leftarrow \max(x_{ij},\ \delta),
+  \qquad
+  \delta = 6.5\times10^{-6},
+\label{eq:s1-zeroreplace}
+\end{equation}
+
+\begin{equation}
+\mathrm{clr}(x_{ij}) = \ln x_{ij} - \frac{1}{p}\sum_{k=1}^{p}\ln x_{ik}
+  = \ln\frac{x_{ij}}{g_i},
+  \qquad
+  g_i = \Big(\prod_{k=1}^{p} x_{ik}\Big)^{1/p}.
+\label{eq:s1-clr}
+\end{equation}
+
+\paragraph{主模型：Logistic 回归 + L2 正则 + 按类别样本量反比设权}
+
+考虑到高维小样本、类别不平衡的数据特征，同时为了避免过拟合以及方便后续ROC分析和阈值分析等原因，我们选择 L2 正则 Logistic 回归作为主模型。线性模型的系数方向可以直接解释为菌群与患病风险的同向或反向，这为后面 第二问标志物筛选和第三问跨疾病分析提供了可用的特征方向。RF虽然能做非线性拟合，但其置换重要性在本数据中只有$10^{-17}$数量级，无法提供可靠排序。于是主模型具体操作如下：
+
+该模型先对 CLR 后的特征计算线性得分，再通过 sigmoid 函数转换为患病概率：
+
+\begin{equation}
+z_i = \mathbf{w}^{\top}\mathrm{clr}(\mathbf{x}_i) + b,
+  \qquad
+  P(y_i=1\mid \mathbf{x}_i) = \sigma(z_i) = \frac{1}{1+e^{-z_i}}.
+\label{eq:s1-logistic}
+\end{equation}
+
+损失函数为交叉熵损失加 L2 惩罚，平滑收缩特征权重，降低过拟合风险：
+
+\begin{equation}
+\mathcal{L}(\mathbf{w},b) =
+  -\sum_{i=1}^{n}\Big[y_i\ln\sigma(z_i) + (1-y_i)\ln\big(1-\sigma(z_i)\big)\Big]
+  + \frac{\lambda}{2}\lVert\mathbf{w}\rVert_2^2.
+\label{eq:s1-loss}
+\end{equation}
+
+类别不平衡通过按类别样本量反比设定样本权重来处理，少数类获得更高权重，补偿少数类的权重比例，具体形式见下式：
+
+\begin{equation}
+w_c = \frac{n}{n_{\text{classes}} \times n_c},
+  \qquad
+  c \in \{0,1\}.
+\label{eq:s1-classweight}
+\end{equation}
+
+\paragraph{对照模型与基线}
+
+为验证主模型判别能力，本文设置一组对照模型与两类基线。对照模型选用随机森林（500棵树）直接输入过滤后的原始相对丰度（免CLR）作为能够捕获物种间非线性交互作用的对照，用于判断线性假设是否足够；基线则以单特征最佳阈值 + Dummy 多数类作为性能下界，防止过度设计——单特征最佳阈值基线，即单独使用判别力最强的单个特征、扫描最优阈值分类，衡量单个物种独立可用的判别上限；Dummy多数类分类器，即恒将样本判为多数类，提供无信息条件下的性能基准。
+
+\paragraph{评估指标}
+
+评估指标采用 Mann–Whitney 形式的AUC，通过比较正样本与负样本的预测概率排序来衡量判别能力，因此不依赖阈值，也不会因为患病比例不同而失真。考虑到三个数据集的患病比例差异明显，只比较 ACC 容易被多数类主导，所以本文不把 ACC 作为主要指标。
+
+在此基础上，我们还补充少数类召回率（Recall） 、精确率（Precision）和少数类 F1 分数，指标公式见下式。它们用来反映模型在少数类上的实际表现。
+
+以下为AUC 的 Mann-Whitney 形式以及少数类指标，其中$s_i=\sigma(z_i)$ 为预测概率，$n^{+}$、$n^{-}$ 为正负样本数：
+
+\begin{equation}
+\mathrm{AUC} = \frac{1}{n^{+}n^{-}}
+  \sum_{i:y_i=1}\ \sum_{j:y_j=0}
+  \Big[ \mathbf{1}[s_i > s_j] + \tfrac{1}{2}\mathbf{1}[s_i = s_j] \Big],
+\label{eq:s1-auc}
+\end{equation}
+
+\begin{equation}
+\begin{aligned}
+  \mathrm{Recall} &= \frac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FN}},
+  \qquad
+  \mathrm{Precision} = \frac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FP}}, \\
+  F_1 &= \frac{2\,\mathrm{Precision}\cdot\mathrm{Recall}}{\mathrm{Precision}+\mathrm{Recall}}.
+\end{aligned}
+\label{eq:s1-metrics}
+\end{equation}
+
+\subsubsection{参数与求解}
+\label{sec:s1-solving}
+
+为诚实评估泛化性能并保证跨数据集可比，三数据采用统一的求解框架：主模型使用sklearn的LogisticRegression（L2 惩罚、$C=1.0$），统一做分层 5 折交叉验证（$K=5$），并以留一交叉验证（LOOCV）作对照。
+
+\textbf{主模型超参与评估框架参数}
+
+{\small
+\begin{longtable}{>{\centering\arraybackslash}p{0.1800\textwidth}>{\centering\arraybackslash}p{0.2400\textwidth}>{\centering\arraybackslash}p{0.5000\textwidth}}
+\caption{主模型超参与评估框架参数}\label{tab:s1-params}\\
+\toprule
+参数 & 含义 & 取值 \\
+\midrule
+\endfirsthead
+\toprule
+参数 & 含义 & 取值 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+$C$ & L2 正则强度倒数，$C=1/\lambda$ & $1.0$ \\
+\texttt{class\_weight} & 类别不平衡处理 & \texttt{'balanced'} \\
+$K$ & 分层交叉验证折数 & $5$ \\
+$\delta$ & CLR 零值替换伪值 & $6.5\times10^{-6}$ \\
+$\tau$ & 近全零过滤阈值 & $0.95$ \\
+$p$ & 过滤后特征维数 & $264$ \\
+\end{longtable}
+}
+
+分层5折交叉验证中每折内类别比例与全量一致，可保证训练集与测试集的正负比稳定，其验证方法是小样本场景的常规选择。当$K=5$，那么每折训练集占 80\%，而对 $n\le253$ 的样本量足以支撑模型拟合，与此同时保留 5 个独立测试折以估计性能方差。过拟合判定采用「5 折 CV AUC 与 LOOCV AUC 差距 $<0.025$」的方案，表明模型在 n$\ll$p 条件下仍保持稳定，未出现过拟合。全量 AUC 恒为 1.0 是 $n\ll p$ 下样本内拟合的必然现象（高维模型可近乎完美记忆训练样本），不具判别意义，故不作过拟合判据。
+
+\subsubsection{结果}
+\label{sec:s1-result}
+
+在主方案（small adenoma 归健康）下，三数据集主模型 L2(CLR) 的 5 折 CV AUC 分别为 Zeller 0.791、metahit 0.887、Chatelier 0.650；RF 对照在 Zeller 与 metahit 上均更优（0.845、0.904），在 Chatelier 上略优（0.660）。三数据集的AUC均显著高于Dummy基线（0.500）与单特征基线（Zeller 0.758、metahit 0.815、Chatelier 0.639），说明肠道菌群组成对三种疾病均携带可判别的信号，且模型性能明显优于依赖单一物种的判别。
+
+\paragraph{三数据集性能}
+
+三数据集主模型（L2+CLR）、对照（RF）与基线（单特征+Dummy）的 5 折 CV 性能汇总见下表，ROC 曲线与性能对比分别见图 1 与图 2。
+
+\textbf{三数据集性能汇总}（5 折 CV；F1 与 Recall 均为少数类标准）：
+
+{\small
+\begin{longtable}{>{\centering\arraybackslash}p{0.1400\textwidth}>{\centering\arraybackslash}p{0.1320\textwidth}>{\centering\arraybackslash}p{0.1320\textwidth}>{\centering\arraybackslash}p{0.1320\textwidth}>{\centering\arraybackslash}p{0.1320\textwidth}>{\centering\arraybackslash}p{0.1320\textwidth}}
+\caption{三数据集性能汇总（5 折 CV；F1 与 Recall 均为少数类标准）}\label{tab:s1-perf}\\
+\toprule
+数据集 & 模型 & AUC & ACC & F1 & Recall \\
+\midrule
+\endfirsthead
+\toprule
+数据集 & 模型 & AUC & ACC & F1 & Recall \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Zeller & L2+CLR & 0.791 & 0.727 & 0.640 & 0.600 \\
+Zeller & RF & 0.845 & 0.785 & 0.678 & 0.580 \\
+metahit & L2+CLR & 0.887 & 0.864 & 0.672 & 0.640 \\
+metahit & RF & 0.904 & 0.818 & 0.352 & 0.240 \\
+Chatelier & L2+CLR & 0.650 & 0.648 & 0.518 & 0.528 \\
+Chatelier & RF & 0.660 & 0.644 & 0.094 & 0.056 \\
+Zeller & 单特征基线 & 0.758 & --- & --- & --- \\
+metahit & 单特征基线 & 0.815 & --- & --- & --- \\
+Chatelier & 单特征基线 & 0.639 & --- & --- & --- \\
+Zeller & Dummy & 0.500 & 0.603 & --- & --- \\
+metahit & Dummy & 0.500 & 0.773 & --- & --- \\
+Chatelier & Dummy & 0.500 & 0.648 & --- & --- \\
+\end{longtable}
+}
+
+对比L2与RF：在Zeller与metahit上RF的AUC更优（分别为+0.054、+0.017）,说明结直肠癌与炎症性肠病的判别信号中存在可被树模型捕获的非线性交互成分；Chatelier上两者接近（0.650 vs 0.660），说明肥胖症的判别信号本身较弱，模型差异不显著。需要特别说明的是，metahit与Chatelier上RF的少数类F1/Recall极低（0.352/0.240、0.094/0.056），这是RF未加\texttt{class\_weight}且默认阈值0.5对不平衡数据次优所致——RF概率输出整体偏低，在0.5阈值下漏掉大量患病样本。AUC为阈值无关的排序指标，但RF的AUC仍诚实反映其判别排序能力。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.90\textwidth]{S1-roc-curve.pdf}
+\caption{三数据集 ROC 曲线与 AUC（L2+RF，OOF 概率）}
+\label{fig:s1-roc}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.90\textwidth]{S1-performance-compare.pdf}
+\caption{三数据集 L2/RF/基线 AUC 对比（点线为多数类基线 0.5）}
+\label{fig:s1-perf}
+\end{figure}
+
+{\raggedright
+主模型输出为连续概率，实际判别需选定阈值。L2 概率分类器在不同阈值下 ACC/F1/Recall/Specificity 的权衡表现为：随阈值升高，Recall 下降而 Specificity 上升，F1 在约 $0.4\sim0.5$ 的中间阈值处达到峰值。疾病筛查更看重对患病人群的检出（Recall），实际应用时可适当下调阈值；本文结果表统一采用默认阈值 0.5，保证三数据集标准一致、结果可复现。\par}
+
+\paragraph{small adenoma 四种方案敏感性}
+
+Zeller数据集中除48例癌症与47例健康外，还含26例small adenoma（小腺瘤）样本。腺瘤属于癌前病变，其归属会直接改变正负类构成并影响模型评估，故人类裁定对其做四种方案敏感分析：方案 (1) 归健康；方案 (2) 归病变（并入癌症正类）；方案 (3) 剔除（不参与建模）；方案 (4) 单开一类（腺瘤独立成类，评估时按患病计）。四种方案下分别对L2与RF重复训练，比较AUC以检验主方案选择的稳健性。
+
+Zeller 腺瘤四种方案的主模型与对照 AUC 对比见表 \cref{tab:adenoma}。
+
+由表可见，方案（2）（归病变）显著劣化：L2 AUC 由 0.791 降至 0.611（掉 0.18），RF 由 0.845 降至 0.651，说明 small adenoma的菌群谱与癌症正类差异较大，混入正类会污染判别边界、拉低模型性能，故应排除；方案 (3)（剔除）与方案 (4)（单开一类）结果一致（L2 0.802、RF 0.867），略优于方案 (1)（L2 +0.011、RF +0.022），但 $\Delta$AUC 均 $<0.05$，属噪声区间，差异不显著。为充分利用信息、保留全部样本，本文维持默认主方案（1）（归健康），并在结果中如实报告四种方案供下游参考。
+
+\paragraph{特征重要性}
+
+主模型在CLR空间中的L2系数刻画了各物种相对丰度对患病概率对数优势比的贡献：系数为正表示该物种相对富集预示患病风险升高，系数为负表示相对缺失预示患病风险升高。其L2系数的Top特征按 $|\text{系数}|$ 排序，此方向可为第二问特征选择提供先验、为第三问跨疾病预测提供参考。需要说明的是，RF permutation importance在三数据集上均退化为接近0（量级 $10^{-17}$），无法提供有效排序，故特征方向以L2系数为准。见图5。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.90\textwidth]{S1-feature-importance.pdf}
+\caption{L2 系数 Top 特征（三数据集）}
+\label{fig:s1-feat}
+\end{figure}
+
+本节建立了三数据集统一的「患病 vs 健康」二分类判别框架。其预处理（近全零过滤 1331$\to$264 + CLR）与评估框架（分层 5 折 CV）在三数据集间完全一致。主模型L2（CLR）的5折CV AUC 分别为Zeller 0.791、metahit 0.887、Chatelier 0.650，均显著高于基线；small adenoma 四种方案敏感性分析确认了主方案 (1) 的稳健性。三数据集的性能差异为后续跨疾病分析提供了基准，统一后的特征标准（1331$\to$264）供第二问特征选择复用，L2 特征方向供第三问跨疾病预测参考。
+\subsection{第二问：特征选择与生物标志物}
+\label{sec:s2-model}
+
+
+问题二要求从微生物组特征中筛选出对疾病预测最具影响力的特征子集，识别出的特征可视为潜在生物标志物。本文针对 1331 个高维稀疏物种特征，构建了“近全零过滤、CLR变换、Lasso稀疏Logistic+bootstrap稳定性选择、两路信号检验、共现分析、PLS-DA佐证”的特征选择流程，对三种疾病各筛选出稳定、可解释、生物合理的Top10-20生物标志物（CRC/IBD各4个高置信、Obesity 20个弱信号），并解读其丰度/存在趋势与跨疾病关系，为第一问分类器提供一致特征子集。
+
+\subsubsection{模型构建}
+
+本题有1331个物种特征而每病样本仅110-253例，且丰度矩阵以零值主导（全数据零值占比 $92.21\%$），是典型的高维稀疏小样本。在此情形下，单次特征选择的结果方差极大——样本或正则参数的微小扰动都可能影响整体改换特征，而零值主导的语义又使“平均丰度差异”失真，如果直接取「最影响」标志物，就容易产生过拟合的假象。因此必须采用「多轮聚合稳定化（bootstrap 频率）+ 信号拆分（存在/缺失 与 丰度两路）」去伪存真。
+
+\paragraph{近全零过滤}
+
+在原始1331维特征中，存在1067个特征在超过95\%的样本里取值为0，几乎不携带判别信息。如果保留这类近全零特征，它们会在 bootstrap 抽样中因个别样本偶然入选、制造不稳定的假特征，同时稀释L1惩罚与RF的分隔信号，故先按零值占比 $z_j\le0.95$ 统一过滤至 $p=264$ 维，与第一问、第三问的标准一致。
+
+对第 $j$ 个物种特征，其零值占比 $z_j$ 定义为该列中取值为 0 的样本比例：
+
+\begin{equation}
+z_j = \frac{1}{n}\sum_{i=1}^{n}\mathbf{1}[x_{ij}=0],
+\label{eq:s2-zerofrac}
+\end{equation}
+
+其中 $n$ 为样本数，$x_{ij}$ 为第 $i$ 个样本第 $j$ 个物种的相对丰度，$\mathbf{1}[\cdot]$ 为指示函数。保留特征 $j$ 当且仅当 $z_j\le 0.95$：
+
+\begin{equation}
+\mathcal{J}_{\text{keep}} = \big\{ j\in\{1,\dots,p_0\}: z_j\le 0.95 \big\},
+  \qquad
+  p = |\mathcal{J}_{\text{keep}}| = 264,
+\label{eq:s2-filter}
+\end{equation}
+
+其中 $p_0=1331$ 为原始特征数，$p=264$ 为过滤后特征数（三病并集统一过滤，与第一问、第三问的标准一致）。
+
+\paragraph{CLR 变换}
+
+相对丰度是定和成分数据（每行之和 $\approx 100$），成分之间「此消彼长」产生结构性伪相关，若直接输入线性模型，Lasso 与 PLS-DA 的系数会受定和约束扭曲。CLR 变换将每个丰度映射为相对本样本几何均值的对数比，解除定和约束，使变换后系数的方向与大小可以解释为「相对丰度的相对重要性」，为后续生物解读提供统计基础。
+
+零值先乘法替换伪值 $\delta=6.5\times10^{-6}$（检出限 $10^{-5}$ 的 0.65 倍，与第一问一致）：
+
+\begin{equation}
+x_{ij} \leftarrow \max(x_{ij},\ \delta),
+\label{eq:s2-zeroreplace}
+\end{equation}
+
+再逐行几何均值中心化：
+
+\begin{equation}
+\mathrm{clr}(x_{ij}) = \ln x_{ij} - \frac{1}{p}\sum_{k=1}^{p}\ln x_{ik}
+  = \ln\frac{x_{ij}}{g_i},
+  \qquad
+  g_i = \Big(\prod_{k=1}^{p} x_{ik}\Big)^{1/p},
+\label{eq:s2-clr}
+\end{equation}
+
+其中 $g_i$ 为第 $i$ 个样本的几何均值。变换后 $\sum_j \mathrm{clr}(x_{ij})=0$，解除定和约束。
+
+\paragraph{Lasso 稀疏 Logistic + bootstrap 稳定性选择}
+
+因为$\lambda$ 的微小变化或个别样本的加入都可能改换入选特征，所以小样本对高维特征，单次 Lasso 的选择几乎不可复现。本文用bootstrap重抽样聚合选择频率，使其稳定化——每个特征在 $B$ 轮重抽样中被选中的比例 $\hat{\pi}_j$ 是对其稳定判别力的估计，只有频率 $\ge\tau$ 的特征才进入稳定集，从而把「单次偶然入选」与「反复稳定入选」区分开，得到方差显著降低的可靠特征子集。
+
+对每个疾病独立，在训练折上最小化 Lasso 稀疏 Logistic 目标函数：
+
+\begin{equation}
+\begin{aligned}
+  \min_{\beta_0,\beta}\ &
+  \underbrace{-\frac{1}{n}\sum_{i=1}^{n}\Big[y_i\ln\hat{p}_i + (1-y_i)\ln(1-\hat{p}_i)\Big]}_{\text{负对数似然（拟合误差）}}
+  + \underbrace{\lambda\sum_{j=1}^{p}|\beta_j|}_{\text{L1 惩罚（稀疏化）}},\\
+  &\hat{p}_i = \sigma(\beta_0 + \mathbf{x}_i^{\top}\beta).
+\end{aligned}
+\label{eq:s2-lasso}
+\end{equation}
+
+其中 $y_i\in\{0,1\}$ 为标签（患病 $=1$），$\sigma(\cdot)$ 为 sigmoid 函数，$\lambda$ 为 L1 正则强度（由逆正则化参数 $C=1/\lambda$ 控制）。第 $j$ 个特征在 $B$ 轮 bootstrap 中的出现频率：
+
+\begin{equation}
+\hat{\pi}_j = \frac{1}{B}\sum_{b=1}^{B}\mathbf{1}\{\hat{\beta}_j^{(b)}\neq 0\},
+\label{eq:s2-freq}
+\end{equation}
+
+其中 $\hat{\beta}_j^{(b)}$ 为第 $b$ 轮 bootstrap 重抽样上拟合的 Lasso 系数。稳定特征集：
+
+\begin{equation}
+\hat{S}_\tau = \big\{ j: \hat{\pi}_j \geq \tau \big\},
+  \qquad
+  \tau = 0.5,
+\label{eq:s2-stable}
+\end{equation}
+
+特征选择（过滤、CLR、Lasso）均在分层 CV 训练折内完成，测试折不参与任何选择步骤，确保整个建模过程中测试集的信息不以任何方式进入训练过程。
+
+\paragraph{两路信号检验}
+
+微生物组对疾病的判别信号并非单一类型，某物种的存在或缺失本身就是强信号——部分致病菌在健康人肠道中几乎不出现，一旦出现即提示患病风险；而丰度高低是次级信号，但只有在均存在的前提下才有意义。故将入选稳定特征拆成存在/缺失与丰度两路信号分别检验，以判定各标志物的主导判别信号。
+
+对入选稳定特征，拆两路信号：
+
+\noindent\textbullet\ \textbf{(a) 存在/缺失信号}：Fisher 精确检验（$2\times2$ 列联表：存在/缺失 $\times$ 病/健），p 值服从超几何分布：
+
+\begin{equation}
+P = \frac{\binom{a+b}{a}\binom{c+d}{c}}{\binom{n}{a+c}},
+\label{eq:s2-fisher}
+\end{equation}
+
+其中 $a,b,c,d$ 为列联表四格计数。
+
+\noindent\textbullet\ \textbf{(b) 非零丰度信号}：非零样本上 Wilcoxon 秩和检验（CLR 后丰度），统计量：
+
+\begin{equation}
+U = \min(U_1, U_2),
+  \qquad
+  U_1 = n_1 n_2 + \frac{n_1(n_1+1)}{2} - R_1,
+\label{eq:s2-wilcoxon}
+\end{equation}
+
+其中 $n_1,n_2$ 为两组样本数，$R_1$ 为病组秩和。
+
+两路均做 BH-FDR 多重比较校正（$m=1331$ 全特征规模，$\alpha=0.05$）：
+
+\begin{equation}
+p_{(k)} \le \frac{k}{m}\alpha,
+\label{eq:s2-fdr}
+\end{equation}
+
+其中 $p_{(1)}\le\dots\le p_{(m)}$ 为升序 p 值，拒绝前 $k$ 个最小 p 值对应的特征。
+
+\paragraph{共现分析（协同效应初探）}
+
+Lasso稀疏Logistic只建模各特征对标签的边际效应，无法显式建模微生物之间的协同（共同出现）与互斥（此消彼长）关系。而肠道菌群在生态上存在竞争与互养，入选标志物之间若存在显著的共现/互斥结构，既是「协同致病/生态失衡」假说的初探证据，也提示标志物并非独立作用。故以入选标志物为限，做二阶共现/互斥检验。
+
+对每病入选标志物两两计算 Spearman 秩相关（非零样本上，CLR 后丰度）：
+
+\begin{equation}
+\rho_{jk} = 1 - \frac{6\sum_{i=1}^{n'} d_i^2}{n'(n'^2-1)},
+  \qquad
+  d_i = \mathrm{rank}(x_{ij}) - \mathrm{rank}(x_{ik}),
+\label{eq:s2-spearman}
+\end{equation}
+
+其中 $n'$ 为两特征均非零的样本数。对相关显著的标志物对，用 Fisher 精确检验（存在/缺失方式）验证同现/互斥是否超出独立期望，输出共现网络（节点 $=$ 标志物，边 $=$ 显著共现/互斥）。
+
+\paragraph{佐证层（独立复现，不参与主选择）}
+
+稳定性选择输出的是基于 Lasso 的经验入选集，而为验证其并非特定算法的产物，本文引入机制完全不同的 PLS-DA 变量投影重要性（VIP）作独立复现佐证。若 PLS-DA 的 VIP 排名与全量稳定特征 Top-N 高度一致，则说明入选标志物是数据固有的强判别信号而非算法特例。RF permutation importance 在三数据集上退化为 $10^{-17}$ 量级（无法提供有效排序），故不作佐证引用。
+
+第 $j$ 个特征的 PLS-DA 变量投影重要性（VIP）：
+
+\begin{equation}
+\mathrm{VIP}_j = \sqrt{\,p\cdot\frac{\sum_{a=1}^{A}\mathrm{SS}_a\cdot\big(w_{ja}/\lVert w_a\rVert\big)^2}{\sum_{a=1}^{A}\mathrm{SS}_a}\,},
+  \qquad
+  \mathrm{SS}_a = \sum_{i=1}^{n}\big(t_{ia}\big)^2,
+\label{eq:s2-vip}
+\end{equation}
+
+其中 $A$ 为 PLS 成分数，$w_{ja}$ 为第 $a$ 个成分中第 $j$ 个特征的权重，$t_{ia}$ 为第 $i$ 个样本在第 $a$ 个成分上的得分。本问阈值上调至 $\mathrm{VIP}>1.5$。RF permutation importance 佐证层退化不可用（全 $\sim10^{-17}$ 量级），故不引用 RF 数字。
+
+\subsubsection{参数与求解}
+
+参数取值依据如下：$C=0.1$ 对应较强的 L1 惩罚，在 264 维上使每轮平均入选 5--20 个特征，兼顾稀疏性与召回；$\tau=0.5$ 要求特征在至少半数 bootstrap 轮次中被选中，保证入选特征的稳定性；$B_{\text{full}}=100$ 与 $B_{\text{cv}}=50$ 分别提供全量与折内稳定的频率估计；$\alpha=0.05$ 为多重比较的常规显著性水平，BH-FDR 的检验规模取全特征数 $m=1331$ 以控制总错误率。
+
+\textbf{稳定性选择参数}：
+
+{\small
+\begin{longtable}{>{\centering\arraybackslash}p{0.1800\textwidth}>{\centering\arraybackslash}p{0.2400\textwidth}>{\centering\arraybackslash}p{0.5000\textwidth}}
+\caption{稳定性选择参数}\label{tab:s2-params}\\
+\toprule
+参数 & 含义 & 取值 \\
+\midrule
+\endfirsthead
+\toprule
+参数 & 含义 & 取值 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+$\tau$ & 稳定特征入选频率阈值 & $0.5$ \\
+$B_{\text{full}}$ & 全量 bootstrap 轮数 & $100$ \\
+$B_{\text{cv}}$ & CV 折内 bootstrap 轮数 & $50$ \\
+$C$ & Lasso 逆正则化参数 & $0.1$ \\
+$m$ & BH-FDR 多重比较规模 & $1331$ \\
+$\alpha$ & FDR 显著性水平 & $0.05$ \\
+$\mathrm{VIP}$ 阈值 & PLS-DA 重要性阈值 & $1.5$ \\
+$\delta$ & CLR 零值替换伪值 & $6.5\times10^{-6}$ \\
+\end{longtable}
+}
+
+求解流程为：对每种疾病独立执行，先完成近全零过滤与 CLR 变换，再在分层 5 折 CV 的训练折内以 $C=0.1$ 拟合 Lasso 稀疏 Logistic ，并做 50 轮 bootstrap 聚合频率，随后在全量数据上再跑 100 轮 bootstrap 得到全量频率；频率 $\ge\tau$ 的特征入选稳定集，每病取 Top 10--20 作为候选标志物；随后做两路信号检验（BH-FDR 校正）、共现分析，最后用 PLS-DA VIP 佐证。所有选择步骤均严格限定在训练折内完成，测试折不参与任何选择，整个建模过程中测试集的信息不以任何方式进入训练过程。
+
+\subsubsection{结果}
+
+稳定性选择与两路信号检验结果表明：CRC与 IBD 各得到 4 个高置信稳定标志物（CRC 中 3/4 命中已知标志物），Obesity 得到 20 个稳定特征但全部 FDR 不显著（弱信号）；所有入选标志物的主导信号几乎全为存在/缺失；三病标志物集合完全疾病特异、无共同标志物。
+
+\paragraph{每病稳定标志物}
+
+下表按病给出稳定标志物清单。为诚实起见，同时列出「全量 bootstrap 频率」（100 轮，稳定性主方案）与「CV 折内频率」（50 轮，反映小样本波动）两套数字：两者差距小的特征更稳健，差距大（如 CV 折内频率明显低于全量）的特征需谨慎解读。CRC/IBD 的 FDR 显著特征与稳定集高度重合，可信度较高；Obesity 的全部 20 个特征 Fisher FDR 均 $>0.05$，须如实标注为弱信号。
+
+\textbf{CRC 稳定标志物}（$n_{\text{stable}}=4$，方向均 up=患病富集，3/4 命中已知标志物）：
+
+{\footnotesize
+\begin{longtable}{>{\centering\arraybackslash}p{0.2200\textwidth}>{\centering\arraybackslash}p{0.1000\textwidth}>{\centering\arraybackslash}p{0.1000\textwidth}>{\centering\arraybackslash}p{0.1100\textwidth}>{\centering\arraybackslash}p{0.1100\textwidth}>{\centering\arraybackslash}p{0.0700\textwidth}>{\centering\arraybackslash}p{0.0500\textwidth}}
+\caption{CRC 稳定标志物}\label{tab:s2-stable-biomarkers}\\
+\toprule
+标志物 & 全量频率 & CV 折内频率 & Fisher FDR & Wilcoxon FDR & 方向 & 已知 \\
+\midrule
+\endfirsthead
+\toprule
+标志物 & 全量频率 & CV 折内频率 & Fisher FDR & Wilcoxon FDR & 方向 & 已知 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\emph{Peptostreptococcus stomatis} & 0.99 & 0.96 & 1.24e-05 & 0.113 & up & 是 \\
+\emph{Fusobacterium nucleatum} & 0.94 & 0.716 & 3.94e-05 & --- & up & 是 \\
+\emph{Porphyromonas somerae} & 0.62 & 0.392 & 0.0172 & --- & up & 是 \\
+\emph{Clostridium hathewayi} & 0.52 & 0.296 & 0.599 & --- & up & — \\
+\end{longtable}
+}
+
+\textbf{IBD 稳定标志物}（$n_{\text{stable}}=4$，4/4 Fisher 显著）：
+
+{\footnotesize
+\begin{longtable}{>{\centering\arraybackslash}p{0.2200\textwidth}>{\centering\arraybackslash}p{0.1200\textwidth}>{\centering\arraybackslash}p{0.1200\textwidth}>{\centering\arraybackslash}p{0.1600\textwidth}>{\centering\arraybackslash}p{0.1200\textwidth}>{\centering\arraybackslash}p{0.0600\textwidth}}
+\caption{IBD 稳定标志物}\label{tab:s2-stable-ibd}\\
+\toprule
+标志物 & 全量频率 & CV 折内频率 & Fisher FDR & 方向 & 已知 \\
+\midrule
+\endfirsthead
+\toprule
+标志物 & 全量频率 & CV 折内频率 & Fisher FDR & 方向 & 已知 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\emph{Alistipes finegoldii} & 0.81 & 0.68 & 0.00675 & down & — \\
+\emph{Bifidobacterium bifidum} & 0.75 & 0.664 & 0.00675 & up & 是 \\
+\emph{Akkermansia muciniphila} & 0.55 & 0.484 & 0.00675 & down & — \\
+\emph{Eubacterium ventriosum} & 0.53 & 0.324 & 0.0398 & down & — \\
+\end{longtable}
+}
+
+\textbf{Obesity 稳定标志物}（$n_{\text{stable}}=20$，0 个 FDR 显著，弱信号）：
+
+{\footnotesize
+\begin{longtable}{>{\centering\arraybackslash}p{0.2800\textwidth}>{\centering\arraybackslash}p{0.1400\textwidth}>{\centering\arraybackslash}p{0.1400\textwidth}>{\centering\arraybackslash}p{0.1400\textwidth}>{\centering\arraybackslash}p{0.1400\textwidth}}
+\caption{Obesity 稳定标志物}\label{tab:s2-stable-obesity}\\
+\toprule
+标志物 & 全量频率 & CV 折内频率 & Fisher FDR & 方向 \\
+\midrule
+\endfirsthead
+\toprule
+标志物 & 全量频率 & CV 折内频率 & Fisher FDR & 方向 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\emph{Ruminococcus flavefaciens} & 0.89 & 0.728 & 0.244 & down \\
+\emph{Pseudoflavonifractor capillosus} & 0.84 & 0.532 & --- & down \\
+\emph{Rothia mucilaginosa} & 0.72 & 0.508 & 0.244 & down \\
+\emph{Bacteroides ovatus} & 0.65 & 0.524 & --- & up \\
+\emph{Mitsuokella multacida} & 0.62 & 0.428 & --- & up \\
+\emph{Megasphaera elsdenii} & 0.62 & 0.476 & --- & up \\
+\emph{Ruminococcus bromii} & 0.61 & 0.544 & --- & up \\
+\end{longtable}
+}
+
+CRC 的 4 个稳定标志物中，\emph{Peptostreptococcus stomatis}（全量频率 0.99）与 \emph{Fusobacterium nucleatum}（0.94）几乎在所有 bootstrap 轮次中被选中，且 Fisher FDR 分别达 $1.24\times10^{-5}$ 与 $3.94\times10^{-5}$，是最可信的标志物；其中 \emph{Fusobacterium nucleatum} 与 \emph{Porphyromonas somerae} 均为文献报道的结直肠癌相关菌，3/4 命中已知标志物说明选择结果与生物学共识一致。IBD 的 4 个标志物全部 Fisher 显著，其中 \emph{Bifidobacterium bifidum} 方向为 up（患病富集）、其余 3 个方向为 down（患病缺失），与「IBD 患者肠道有益菌减少、潜在致病菌增多」的病理认知相符。相比之下，Obesity 的 20 个稳定特征全部 Fisher FDR $>0.05$（0 个 FDR 显著），说明其判别信号弱且分散，可信度低，后文一律按弱信号如实标注。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.86\textwidth]{S2-stable-frequency.pdf}
+\caption{三病稳定标志物频率（$\tau=0.5$ 红线，灰菱形 $=$ CV 折内诚实频率）}
+\label{fig:s2-stable-frequency}
+\end{figure}
+
+\paragraph{两路信号显著数}
+
+稳定标志物只是入选，还需回答其差异究竟来自“在不在”还是“多不多”。本节把每个稳定标志物的病例对照差异拆成两路信号——存在/缺失（Fisher 精确检验）与丰度高低（Wilcoxon 秩和检验），统计各病例两路显著特征数，从而判定每病判别的主导信号类型。
+
+\textbf{两路信号显著数}（全 264 特征标准，BH-FDR $m=1331$）：
+
+{\small
+\begin{longtable}{>{\centering\arraybackslash}p{0.1600\textwidth}>{\centering\arraybackslash}p{0.1700\textwidth}>{\centering\arraybackslash}p{0.1700\textwidth}>{\centering\arraybackslash}p{0.1700\textwidth}>{\centering\arraybackslash}p{0.1700\textwidth}}
+\caption{两路信号显著数}\label{tab:s2-two-path-signals}\\
+\toprule
+疾病 & $n_{\text{stable}}$ & Fisher 显著数 & Wilcoxon 显著数 & 入选标志物主导信号 \\
+\midrule
+\endfirsthead
+\toprule
+疾病 & $n_{\text{stable}}$ & Fisher 显著数 & Wilcoxon 显著数 & 入选标志物主导信号 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+CRC & 4 & 4 & 1 & presence 全 4 \\
+IBD & 4 & 6 & 1 & presence 全 4 \\
+Obesity & 20 & 0 & 0 & presence 18 / abundance 2 \\
+\end{longtable}
+\footnotesize 注：Obesity 的 presence 与 abundance 两路均未通过 FDR 校正。
+}
+
+三病入选标志物的判别信号几乎全为存在/缺失主导（CRC/IBD 全为 presence，Obesity 18/20 为 presence），表明菌群差异主要体现为“有无”而非“多少”。
+
+\paragraph{共现分析}
+
+前两节确认了各标志物的边际判别信号，本节进一步识别入选标志物之间的协同/互斥关系，作为协同效应初探的证据：若两个标志物在同一样本中显著同时出现（共现）或此消彼长（互斥），提示它们可能处于同一生态互作网络，共同或拮抗地参与疾病进程。共现/互斥网络边数与 CRC 共现对明细见附录表 \cref{tab:s2-edge-counts}、\cref{tab:s2-cooccurrence}。
+
+CRC 的最强共现对为 \emph{Peptostreptococcus stomatis} $\leftrightarrow$ \emph{Fusobacterium nucleatum}（Spearman 0.76，Fisher $p\approx8.8\times10^{-7}$，OR 12.9）——两菌同时出现的概率约为独立的 12.9 倍，与「二者常共同富集于结直肠癌微环境」的文献观察一致；IBD 中 \emph{Bifidobacterium bifidum} 与其余 3 个标志物全部互斥——患病状态下有益菌 B. bifidum 缺失而其余标志物富集，符合 IBD 菌群失衡的图景。需要声明边界：小样本下本文仅对入选标志物做二阶探索，无法进行全特征交互建模，标志物筛选的主方案仍为边际信号。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.86\textwidth]{S2-cooccurrence-heatmap.pdf}
+\caption{共现 Spearman 相关热图（CRC/IBD）}
+\label{fig:s2-cooccurrence-heatmap}
+\end{figure}
+
+\paragraph{跨疾病对比}
+
+三病标志物分别独立筛选，本节直接比较三病稳定标志物集合的重叠程度，回答「不同疾病是否共享微生物标志物」这一问题，并为跨疾病独立建模的假设提供证据。
+
+\textbf{三病 Jaccard 重叠矩阵}：
+
+{\small
+\begin{longtable}{>{\centering\arraybackslash}p{0.4000\textwidth}>{\centering\arraybackslash}p{0.5600\textwidth}}
+\caption{三病 Jaccard 重叠矩阵}\label{tab:s2-cross-disease}\\
+\toprule
+疾病对 & Jaccard \\
+\midrule
+\endfirsthead
+\toprule
+疾病对 & Jaccard \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+CRC–IBD & 0.0 \\
+CRC–Obesity & 0.0 \\
+IBD–Obesity & 0.0 \\
+\end{longtable}
+}
+
+三病稳定标志物集两两 Jaccard 重叠均为 0，无跨疾病共享标志物，提示三病菌群失调模式高度特异，需独立建模。
+
+\paragraph{$\tau$ 敏感性}
+
+稳定标志物入选数以阈值 $\tau$ 为判据，本节扫描 $\tau\in\{0.4,0.5,0.6,0.7\}$，检验入选数是否随阈值剧烈变化，以判断稳定集是否「货真价实」——若入选数随 $\tau$ 平滑下降，说明存在与噪声可分的高频特征簇；若骤降，则入选特征多为噪声堆积。
+
+\textbf{稳定标志物入选数随 $\tau$ 变化}（全量 bootstrap）：
+
+{\small
+\begin{longtable}{>{\centering\arraybackslash}p{0.1600\textwidth}>{\centering\arraybackslash}p{0.1700\textwidth}>{\centering\arraybackslash}p{0.1700\textwidth}>{\centering\arraybackslash}p{0.1700\textwidth}>{\centering\arraybackslash}p{0.1700\textwidth}}
+\caption{稳定标志物入选数随 $\tau$ 变化}\label{tab:s2-tau-sensitivity}\\
+\toprule
+疾病 & $\tau=0.4$ & $\tau=0.5$ & $\tau=0.6$ & $\tau=0.7$ \\
+\midrule
+\endfirsthead
+\toprule
+疾病 & $\tau=0.4$ & $\tau=0.5$ & $\tau=0.6$ & $\tau=0.7$ \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+CRC & 6 & 4 & 3 & 2 \\
+IBD & 6 & 4 & 2 & 2 \\
+Obesity & 32 & 20 & 9 & 3 \\
+\end{longtable}
+}
+
+CRC/IBD 的入选数随 $\tau$ 从 0.4 升至 0.7 仅由 6 降至 2（每档只减 1--2 个），说明其高频率特征与低频噪声之间存在明显间隔，稳定簇与噪声可分，选择结果对 $\tau$ 不敏感、稳健；Obesity 则由 32 骤降至 3（几乎每档减半），说明其入选特征频率分布连续、无清晰分界，选择结果对 $\tau$ 高度敏感，进一步印证 Obesity 为弱信号。
+
+本节交付了三种疾病各自的稳定、可解释、生物合理的生物标志物清单：CRC/IBD 各 4 个高置信标志物（CRC 3/4 命中已知标志物、IBD 4/4 Fisher 显著），Obesity 20 个弱信号标志物（如实标注 FDR 不显著）；两路信号检验判定判别信号由存在/缺失主导，共现分析给出协同效应初探证据，三病标志物完全疾病特异支持独立建模，$\tau$ 敏感性检验进一步确认 CRC/IBD 选择的稳健性。所筛特征子集可为第一问分类器提供一致输入，其生物方向将供第三问跨疾病预测参考。
+
+\subsection{第三问：跨疾病预测模型}
+\label{sec:s3-model}
+
+
+\subsubsection{模型构建}
+
+跨疾病预测要回答的问题是，在一种疾病上学到的微生物特征能否迁移到另一种从未见过的疾病上。这比单疾病预测更接近真实应用场景——新疾病出现时往往没有标注数据。我们采用留一疾病（Leave-One-Disease-Out, LODO）方案作为诚实评估框架：每次留出一种疾病作测试集，其余两种作训练集，保证测试疾病在训练阶段完全不可见。在此框架下系统对比四种跨疾病建模策略，结果四策略三组合 AUC 均值全部低于 0.60，触发预设的后续模型探索流程；候选模型序列中最优的密度比重加权域适应均值为 0.6068，仍低于本文设定的可用性参考线（后简称可用线）0.65。因此本节以「最优可达性能加完整验证过程」的方式交付，未声称得到可用的跨疾病模型。
+
+\paragraph{LODO 留一疾病评估方案}
+
+LODO 的核心思想是把疾病本身作为划分维度，而非随机划分样本。设三种疾病构成集合 $\mathcal{D}=\{d_1,d_2,d_3\}$（$d_1$=CRC、$d_2$=IBD、$d_3$=Obesity）。对每个被留出的疾病 $d_k$，构造训练–测试划分：
+
+\begin{equation}
+\mathcal{T}_k = \bigcup_{d\neq d_k} \mathcal{S}_d, \qquad \mathcal{E}_k = \mathcal{S}_{d_k}, \qquad k=1,2,3
+\label{eq:s3-lodo}
+\end{equation}
+
+其中 $\mathcal{S}_d$ 是疾病 $d$ 的样本集，$\mathcal{T}_k$ 与 $\mathcal{E}_k$ 分别为第 $k$ 组合的训练集与测试集。
+
+三个组合分别为：C1 以 IBD 和 Obesity 为训练集、CRC 为测试集；C2 以 CRC 和 Obesity 为训练集、IBD 为测试集；C3 以 CRC 和 IBD 为训练集、Obesity 为测试集。三个测试集的正类占比差异较大——C1 为 39.7\%，C2 仅 22.7\% 少数类，C3 高达 64.8\% 正类多数，这种基线差异本身就是跨疾病应用的现实挑战。
+
+{\small
+\begin{longtable}{>{\centering\arraybackslash}p{0.1500\textwidth}>{\centering\arraybackslash}p{0.2500\textwidth}>{\centering\arraybackslash}p{0.2000\textwidth}>{\centering\arraybackslash}p{0.2800\textwidth}}
+\caption{LODO 留一疾病评估方案}\label{tab:s3-lodo}\\
+\toprule
+组合 & 训练集 & 测试集 & 测试集正类占比 \\
+\midrule
+\endfirsthead
+\toprule
+组合 & 训练集 & 测试集 & 测试集正类占比 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+C1 & IBD + Obesity & CRC & 39.7\% \\
+C2 & CRC + Obesity & IBD & 22.7\% 少数类 \\
+C3 & CRC + IBD & Obesity & 64.8\% 正类多数 \\
+\end{longtable}
+}
+
+\paragraph{数据预处理与 CLR 变换}
+
+物种级相对丰度本质上是成分数据，各物种丰度之和为 1，存在定和约束。如果直接将原始丰度输入基于欧式距离的模型，定和约束会引入伪相关——一个物种丰度的上升必然意味着其他物种的下降，这种数学约束会被误判为生物学关联。因此采用中心对数比变换（CLR）将成分数据映射到无约束的实数空间：
+
+\begin{equation}
+\mathrm{clr}(\mathbf{x})_j = \ln\!\left(\frac{x_j}{g(\mathbf{x})}\right), \qquad g(\mathbf{x}) = \left(\prod_{j=1}^{p} x_j\right)^{1/p}
+\label{eq:s3-clr}
+\end{equation}
+
+其中 $g(\mathbf{x})$ 是几何均值。零值（微生物未检出）不能直接取对数，采用乘法替换：
+
+\begin{equation}
+x_{ij} \leftarrow \delta = 6.5\times10^{-6}, \qquad \text{当 } x_{ij}=0
+\label{eq:s3-zeroreplace}
+\end{equation}
+
+预处理分三步：首先过滤近全零特征，将 1331 个原始特征压缩至 264 个；然后对零值做乘法替换后执行 CLR 变换；最后对每个特征做标准化，但均值和标准差仅在训练集上估计，再应用到测试集：
+
+\begin{equation}
+z_{ij} = \frac{\mathrm{clr}(\mathbf{x}_i)_j - \hat{\mu}_j^{(\mathcal{T}_k)}}{\hat{\sigma}_j^{(\mathcal{T}_k)}}
+\label{eq:s3-scaler}
+\end{equation}
+
+这一步严格避免任何形式的数据泄漏。
+
+\paragraph{策略 A：直接迁移（基线）}
+
+策略 A 是最直接的跨疾病做法：在两种疾病的合并训练集上拟合 L2 正则化 Logistic 回归，直接在第三种疾病上测试。它作为所有策略的性能基线，沿用第一问的模型设置（L2+CLR，物种级 264 特征）。
+
+对每个 LODO 组合 $k$，在训练集 $\mathcal{T}_k$ 上拟合正则化 Logistic 回归：
+
+\begin{equation}
+P(y=1 \mid \mathbf{x}) = \sigma\!\left(\mathbf{w}^{\top}\mathbf{z} + b\right) = \frac{1}{1+\exp\!\left(-\left(\mathbf{w}^{\top}\mathbf{z}+b\right)\right)}
+\label{eq:s3-logistic}
+\end{equation}
+
+其中 $\mathbf{z}=\mathrm{clr}(\mathbf{x})$ 标准化后的特征向量，原始分数（logit）记作 $f(\mathbf{x})=\mathbf{w}^{\top}\mathbf{z}+b$。优化目标为 L2 正则化加类别权重：
+
+\begin{equation}
+\min_{\mathbf{w},b}\ \frac{1}{2}\|\mathbf{w}\|_2^2 + C \sum_{i\in\mathcal{T}_k} w_i \left[ -y_i\ln\sigma(f(\mathbf{x}_i)) - (1-y_i)\ln\!\left(1-\sigma(f(\mathbf{x}_i))\right) \right]
+\label{eq:s3-l2}
+\end{equation}
+
+其中 $C=1.0$ 是正则化强度，$w_i$ 是类别权重（\texttt{class\_weight='balanced'}），用于处理测试集类别不平衡。
+
+\paragraph{策略 B：共享标志物（跨疾病通用模型）}
+
+策略 B 的出发点是：如果疾病特异信号在跨疾病场景下反而成为噪声，那么只保留三种疾病共享的物种特征，或许能训练出更通用的模型。共享特征集取三种疾病特征集的交集：
+
+\begin{equation}
+\mathcal{F}_{\mathrm{shared}} = \mathcal{F}_{\mathrm{CRC}} \cap \mathcal{F}_{\mathrm{IBD}} \cap \mathcal{F}_{\mathrm{Obesity}}
+\label{eq:s3-shared}
+\end{equation}
+
+策略 B 在 $\mathcal{F}_{\mathrm{shared}}$ 上重训策略 A 同款模型，重跑 LODO。需要强调的是，这里的交集仅基于特征的存在性，绝不涉及测试集标签，属于仅用测试集特征不用标签的边界内的合法操作。
+
+\paragraph{策略 C：分类学聚合（属级/门级 + CLR）}
+
+题面注 2 明确提示可利用微生物分类学信息。策略 C 将物种级丰度按属或门聚合，期望更高层级的分类单元具有更强的跨疾病保守性。对某个属 $g$，其聚合丰度为该属下所有物种丰度之和：
+
+\begin{equation}
+x_g = \sum_{j:\ \text{species } j \in \text{genus } g} x_j
+\label{eq:s3-aggregate}
+\end{equation}
+
+聚合后维度大幅下降（属级 106 维、门级 11 维），再对聚合后的成分做 CLR，重训 Logistic L2，重跑 LODO。
+
+\paragraph{策略 D：Platt 校准（输出概率修正模型）}
+
+AUC 是阈值无关指标，不受概率调整影响。但模型实际应用时需要输出可解释的患病概率，而训练集和测试集的患病基线不同会导致概率失准。策略 D 在 AUC 最优的基策略上叠加 Platt 校准，将原始 logit 分数映射到调整概率：
+
+\begin{equation}
+P_{\mathrm{cal}}(y=1 \mid \mathbf{x}) = \frac{1}{1+\exp\!\left(A\cdot f(\mathbf{x}) + B\right)}
+\label{eq:s3-platt}
+\end{equation}
+
+其中 $A,B$ 是标量参数，仅在训练集上用 Logistic 回归拟合。当 $A<0$ 时 $P_{\mathrm{cal}}$ 是 $f$ 的严格单调递增函数，不改变样本排序，故 AUC 完全不变——Platt 校准修复的是分数到概率的映射，不改排序能力。
+
+\paragraph{阈值迁移：Youden J}
+
+跨疾病场景下，决策阈值不能在测试集上重新确定——那会用到新疾病的标签，破坏测试集信息隔离。采用 Youden J 统计量在训练集上确定最优阈值，然后原样迁移到测试集。对决策阈值 $\tau$，Youden J 为灵敏度与特异度之和减 1：
+
+\begin{equation}
+J(\tau) = \mathrm{TPR}(\tau) + \mathrm{TNR}(\tau) - 1 = \mathrm{TPR}(\tau) - \mathrm{FPR}(\tau)
+\label{eq:s3-youden}
+\end{equation}
+
+Youden J 最优阈值为使 $J$ 最大的阈值：
+
+\begin{equation}
+\tau^{*} = \arg\max_{\tau} J(\tau)
+\label{eq:s3-youden-threshold}
+\end{equation}
+
+$\tau^{*}$ 只在训练集 $\mathcal{T}_k$ 上估计，然后原样搬到测试集 $\mathcal{E}_k$，报告该阈值下的 ACC、灵敏度、特异度、F1。
+
+\paragraph{后续模型探索流程（R1–R4）}
+
+预设候选模型探索触发条件：如果四种策略的三组合 AUC 均值全部低于 0.60，则启动后续模型探索。设策略 $s\in\{\text{A,B,C,D}\}$ 的 3 组合 AUC 均值为 $\overline{\mathrm{AUC}}_s$。触发条件：
+
+\begin{equation}
+\overline{\mathrm{AUC}}_s < 0.60, \qquad \forall s\in\{\text{A,B,C,D}\}
+\label{eq:s3-fallback-trigger}
+\end{equation}
+
+候选模型模型被判定为「可用」需满足以下任一条件：
+
+\begin{equation}
+\overline{\mathrm{AUC}}_r \ge 0.65 \quad \text{或} \quad \overline{\mathrm{AUC}}_r - \overline{\mathrm{AUC}}_{\mathrm{A}} \ge 0.10
+\label{eq:s3-usable-line}
+\end{equation}
+
+候选模型序列包含四个层级：R1 树模型（RandomForest）、R2 样本合并（等价于策略 A）、R3 密度比重加权域适应、R4 对抗式域适应（DANN）。其中 R3 的密度比权重为测试特征分布密度与训练特征分布密度之比：
+
+\begin{equation}
+w(\mathbf{x}) = \frac{p_{\mathrm{test}}(\mathbf{x})}{p_{\mathrm{train}}(\mathbf{x})}
+\label{eq:s3-importance}
+\end{equation}
+
+估计密度比时仅使用测试集特征、不使用标签，符合仅用测试集特征不用标签的边界。
+
+\subsubsection{参数与求解}
+
+模型采用 L2 正则化 Logistic 回归，正则化强度 $C=1.0$，使用 balanced 类别权重处理类别不平衡，最大迭代次数 2000。预处理流程为近全零过滤到 CLR 变换到标准化，其中标准化参数仅从训练集估计。预算不受限。Platt 校准的三组合 $A$ 参数均为负，保证单调变换不反转排序。整个建模过程中，测试集的信息不以任何方式进入训练过程：特征选择、CLR、标准化、模型权重、决策阈值、调整参数均仅从训练集获得，阈值迁移不在测试集上重定。
+
+{\small
+\begin{longtable}{>{\centering\arraybackslash}p{0.2800\textwidth}>{\centering\arraybackslash}p{0.6800\textwidth}}
+\arrayrulecolor[gray]{0.8}
+\caption{参数与求解}\label{tab:s3-params}\\
+\toprule
+参数 & 取值 / 说明 \\
+\midrule
+\endfirsthead
+\toprule
+参数 & 取值 / 说明 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+模型 & LogisticRegression，L2 惩罚，$C=1.0$，\texttt{class\_weight='balanced'}，\texttt{max\_iter=2000}，加 CLR \\
+\hline
+预处理 & 近全零过滤 1331$\to$264 $\to$ CLR 零值乘法替换 $\delta=6.5\times10^{-6}$ $\to$ 标准化，均值/方差仅训练集估计 \\
+\hline
+预算受限 & \texttt{budget\_limited}=False \\
+\hline
+Platt 校准 & $A<0$，三组合 $A$ 均负，等价 \texttt{platt\_w}>0，防排序反转 \\
+\hline
+信息隔离 & 整个建模过程中测试集的信息不以任何方式进入训练过程；所有参数仅从训练集估计；阈值迁移不在测试集上重定 \\
+\end{longtable}
+\arrayrulecolor{black}
+}
+
+求解流程为：对每个 LODO 组合，在训练集上拟合模型并确定 Youden 最优阈值，在测试集上预测并报告 AUC（主指标）以及阈值迁移后的 ACC、灵敏度、特异度、F1（辅指标）。策略 D 在 AUC 最优的基策略上叠加 Platt 校准后重跑相同流程。
+
+\subsubsection{结果}
+
+\paragraph{四策略对比}
+
+四种策略的三组合 AUC 如下表所示。策略 A 直接迁移的均值最高，为 0.5603，但仍远低于可用线 0.65。策略 B 共享标志物的均值为 0.5572，与策略 A 基本持平，说明剔除疾病特异特征并未带来增益——共享特征本身也不承载可迁移信号。策略 C 分类学聚合反而显著下降，属级聚合均值仅 0.4639，门级聚合 0.5134，表明更高分类层级的保守性是以丢失判别信息为代价的，题面提示的分类学信息在本数据中实证无增益。策略 D 与策略 A 的 AUC 完全相同（0.5603），符合 Platt 单调变换不改变排序的理论预期。
+
+{\small
+\begin{longtable}{>{\centering\arraybackslash}p{0.1600\textwidth}>{\centering\arraybackslash}p{0.1700\textwidth}>{\centering\arraybackslash}p{0.1700\textwidth}>{\centering\arraybackslash}p{0.1700\textwidth}>{\centering\arraybackslash}p{0.1700\textwidth}}
+\caption{四策略跨疾病 AUC 对比}\label{tab:s3-strategy}\\
+\toprule
+策略 & C1 & C2 & C3 & 3 组合均值 \\
+\midrule
+\endfirsthead
+\toprule
+策略 & C1 & C2 & C3 & 3 组合均值 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+A 直接迁移 & 0.5674 & 0.5882 & 0.5253 & \textbf{0.5603} \\
+B 共享标志物 & 0.5417 & 0.6080 & 0.5218 & 0.5572 \\
+C 属级聚合 & 0.3616 & 0.4861 & 0.5440 & 0.4639 \\
+C 门级聚合 & 0.4141 & 0.5261 & 0.5999 & 0.5134 \\
+D 输出概率修正 & 0.5674 & 0.5882 & 0.5253 & 0.5603 \\
+\end{longtable}
+\footnotesize 注：A 为 L2+CLR、物种级 264 特征；B 为三病交集 252 特征重训；C 属级、门级聚合分别 106、11 特征；D 为策略 A 叠加 Platt 校准。
+}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.86\textwidth]{S3-strategy-compare.pdf}
+\caption{四策略跨疾病 3 组合 AUC 对比（点线为随机基准 0.5，虚线为可用线 0.65）}
+\label{fig:s3-strategy}
+\end{figure}
+
+四策略 3 组合 AUC 均值全部低于 0.60（最优策略 A 直接迁移 0.5603），触发后续模型探索。
+
+\paragraph{后续模型探索结果（R1–R4）}
+
+候选模型序列逐级测试结果如下表。R1 随机森林均值 0.5092，甚至低于线性模型，说明非线性模型在小样本高维场景下更容易过拟合训练分布。R2 样本合并等价于策略 A，均值 0.5603。R3 密度比重加权域适应均值 0.6068，是候选模型序列中最优的，相对策略 A 提升 +0.0465，但该提升未达到大于等于 0.10 的可用线，且均值本身低于 0.65。R4 对抗式域适应均值 0.5947，略低于 R3。
+
+{\scriptsize
+\begin{longtable}{>{\centering\arraybackslash}p{0.1000\textwidth}>{\centering\arraybackslash}p{0.1100\textwidth}>{\centering\arraybackslash}p{0.1100\textwidth}>{\centering\arraybackslash}p{0.1100\textwidth}>{\centering\arraybackslash}p{0.1100\textwidth}>{\centering\arraybackslash}p{0.1100\textwidth}>{\centering\arraybackslash}p{0.1100\textwidth}}
+\caption{后续模型探索结果（R1--R4）}\label{tab:s3-fallback}\\
+\toprule
+层级 & 模型族 & 3 组合均值 & C1 & C2 & C3 & 达线？ \\
+\midrule
+\endfirsthead
+\toprule
+层级 & 模型族 & 3 组合均值 & C1 & C2 & C3 & 达线？ \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+R1 & 随机森林 & 0.5092 & 0.4405 & 0.5529 & 0.5342 & 否 \\
+R2 & 样本合并 & 0.5603 & 0.5674 & 0.5882 & 0.5253 & 否 \\
+R3 & 密度比重加权 & \textbf{0.6068} & 0.5945 & 0.6489 & 0.5771 & 否 \\
+R4 & 对抗式域适应 & 0.5947 & 0.6184 & 0.6259 & 0.5398 & 否 \\
+\end{longtable}
+\footnotesize 注：R1 为 500 棵树的随机森林；R2 与策略 A 数学等价；R3 为 importance weighting 密度比重加权；R4 为 DANN 对抗式域适应。
+}
+
+R1 到 R4 全部未达可用线。我们穷尽了预设的候选出口，如实报告负结果：在当前数据规模和疾病组合下，跨疾病预测的性能上限约为 0.61（R3），未达到可直接应用的水平。失败的主要原因有二：一是各疾病的判别信号高度特异，共享方向接近随机；二是不同研究中的患病定义存在差异——不同研究中「患病」与「健康」的定义和基线不同，直接迁移会导致决策边界错位。
+
+\paragraph{衰减归因（三分法）}
+
+为了量化跨疾病性能衰减的来源，将每种疾病的跨疾病 AUC 与其域内 AUC（同标准 264 特征 5 折 CV）对比，计算衰减量。对疾病 $d$，跨疾病衰减量为：
+
+\begin{equation}
+\Delta_d = \mathrm{AUC}_{\mathrm{cross}}(d) - \mathrm{AUC}_{\mathrm{domain}}(d)
+\label{eq:s3-decay}
+\end{equation}
+
+其中 $\mathrm{AUC}_{\mathrm{cross}}(d)$ 是疾病 $d$ 作测试集时的跨疾病 AUC，$\mathrm{AUC}_{\mathrm{domain}}(d)$ 是疾病 $d$ 的域内 AUC。
+
+结果显示 IBD 的衰减最大，为负 0.2706，CRC 次之（负 0.2138），Obesity 最小（负 0.1384）。从归因来看，CRC 和 IBD 的衰减主要由疾病特异信号主导——这两种疾病的域内 AUC 较高（0.78 和 0.86），说明微生物组与疾病状态有强关联，但这种关联是疾病特异的，无法迁移。Obesity 的域内 AUC 本身较低（0.66），衰减主要来自患病定义差异——肥胖的定义在不同研究中可能基于不同的 BMI 阈值，且肠道菌群与肥胖的关联本身较弱。批次效应并非主导因素，silhouette 系数仅 0.070，接近 0，说明三种疾病的样本在特征空间中并未按研究来源明显聚类。
+
+{\small
+\begin{longtable}{>{\centering\arraybackslash}p{0.1500\textwidth}>{\centering\arraybackslash}p{0.1600\textwidth}>{\centering\arraybackslash}p{0.1600\textwidth}>{\centering\arraybackslash}p{0.1600\textwidth}>{\centering\arraybackslash}p{0.2100\textwidth}}
+\caption{衰减归因（三分法）}\label{tab:s3-decay}\\
+\toprule
+疾病 & 域内 AUC & 跨疾病 AUC & 衰减量 & 主导归因 \\
+\midrule
+\endfirsthead
+\toprule
+疾病 & 域内 AUC & 跨疾病 AUC & 衰减量 & 主导归因 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+CRC & 0.7811 & 0.5674 & $-$0.2138 & 疾病特异信号 \\
+IBD & 0.8588 & 0.5882 & \textbf{$-$0.2706} & 疾病特异信号最强 \\
+Obesity & 0.6638 & 0.5253 & $-$0.1384 & 患病定义差异 \\
+\end{longtable}
+}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.86\textwidth]{S3-decay-attribution.pdf}
+\caption{域内 vs 跨疾病 AUC 衰减归因（蓝点为域内、橙点为跨疾病，灰线为衰减量，点线为随机基准 0.5）}
+\label{fig:s3-decay}
+\end{figure}
+
+\paragraph{深度迁移分析}
+
+进一步检验共享物种在不同疾病间的效应方向一致性。在 756 个有效共享物种中，方向一致的有 387 个（51.2\%），方向翻转的有 369 个（48.8\%），几乎各占一半。符号检验 $p=0.5364$，远不显著。这意味着共享物种的效应方向与随机猜测无异——共享物种的存在性本身不承载可迁移的判别信号，真正的判别信息藏在疾病特异的特征方向中，而这些方向在跨疾病场景下不可用。
+
+\paragraph{阈值偏移量化（C3）}
+
+C3 组合（训练 CRC+IBD，测试 Obesity）的阈值偏移最为严重。训练集与测试集的患病概率基线差：
+
+\begin{equation}
+\Delta_{\mathrm{baseline}} = \hat{P}_{\mathrm{test}}(y=1) - \hat{P}_{\mathrm{train}}(y=1)
+\label{eq:s3-baseline}
+\end{equation}
+
+训练集患病基线为 0.3160，测试集为 0.6482，基线差 $\Delta=+0.3322$——测试集中近三分之二为正类，而训练集仅约三分之一。在训练集上确定的 Youden 最优阈值 $\tau^{*}=0.9205$，落到测试分数分布的 96.0\% 分位，意味着只有 4\% 的测试样本被判为患病，灵敏度仅 0.0244，几乎全部误判为健康。
+
+Platt 校准是单调变换，不改变决策边界的相对位置，因此无法修复这种由基线偏移导致的阈值偏移——校准前后 Youden 阈值迁移的灵敏度一致。即便放弃训练集阈值、改用 0.5 的朴素概率阈值，灵敏度也仅 0.1646。C3 的案例清楚表明，跨疾病应用的核心障碍不仅是 AUC 不足，更是训练集拟合的决策阈值在新疾病基线下完全失效。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.86\textwidth]{S3-threshold-drift.pdf}
+\caption{C3 阈值偏移诊断：训练/测试患病概率分布对比（红虚线为训练 Youden 阈值 $\tau^{*}=0.9205$，左侧阴影为被判健康的区域，96.0\% 测试样本落于其中）}
+\label{fig:s3-threshold-drift}
+\end{figure}
+
+\paragraph{跨疾病泛化受限的因果分析（E0–E6 实验证据链）}
+
+为排除「统一跨疾病模型不可行」的替代解释（批次伪影、模型容量不足、模型族限制、评估方案过严、模型组合方式、深度学习表示能力），在 LODO 评估框架下依次完成六轮归因实验，全部复用正式实现同标准（CLR $\delta=6.5\times10^{-6}$、L2 正则 + 按类别样本量反比设定样本权重、标准化仅训练集估计）：
+
+{\scriptsize
+\begin{longtable}{>{\centering\arraybackslash}p{0.0800\textwidth}>{\centering\arraybackslash}p{0.1600\textwidth}>{\centering\arraybackslash}p{0.1800\textwidth}>{\centering\arraybackslash}p{0.2600\textwidth}>{\centering\arraybackslash}p{0.1600\textwidth}}
+\arrayrulecolor[gray]{0.8}
+\caption{跨疾病泛化受限的因果分析（E0--E6 实验证据链）}\label{tab:s3-evidence}\\
+\toprule
+实验 & 验证的替代解释 & 做法 & 关键结果 & 结论 \\
+\midrule
+\endfirsthead
+\toprule
+实验 & 验证的替代解释 & 做法 & 关键结果 & 结论 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+E0 ComBat 批次校正 & 三数据集=三批次完全共线，失败是批次伪影？ & ComBat 批次校正，设计变量为疾病标签，后重跑策略 A & 3 组合均值 0.5603 $\to$ \textbf{0.4960}，$\Delta$=$-$0.0643，C3 跌至 0.3746 & 证伪：校正不升反降，批次效应不是失败主因 \\
+\hline
+E1 免训练/低容量基线 & 失败是模型容量不足、欠拟合？ & 免训练 NCM、2 类均值原型 + 低容量 PLS-DA 重跑 LODO & NCM 0.5362/0.5594、PLS-DA 0.5574/0.5798，全部 $\le$ 基线 0.5603 & 证伪：容量从免训练到高容量域适应仅 +0.06，天花板与容量无关 \\
+\hline
+E2 贝叶斯模型族 & 稀疏先验/贝叶斯框架可突破？ & 贝叶斯 L2 / ARD、ADVI，第一问域内 + 第三问 LODO 双跑 & 第一问域内 ARD 不提升，$\Delta\le+0.003$；第三问贝叶斯 0.5746/0.5748 $\approx$ 基线 0.5603 & 证伪：第一问的 L2 已近上限，第三问天花板与模型族无关 \\
+\hline
+E3 few-shot 敏感性 & LODO 零样本方案过严，少量标注即可救回？ & 目标疾病 k=50 带标签样本并入训练 & 均值 0.5603 $\to$ 0.5898，+0.0295 仍 <0.60；C1 达 0.6567 & 证伪：零样本方案不过严，信号稀缺为真 \\
+\hline
+E5 源分离+融合 & 合并训练稀释源信号，分别学习再融合可突破？ & 两训练疾病分别训 Logistic、各自独立标准化，F1 logit 平均 / F2 概率平均 / F3 域内 CV-AUC 加权 & 均值 F1 0.5996 / F2 0.5828 / F3 0.5995 vs 基线 0.5603，+0.039；C1 融合 0.6273、C2 F1 0.6334、C3 0.5424 仍近随机 & 部分证伪：融合有真实增益但未达可用线，<R3 0.6068；C3 患病定义差异方向无效；合并训练确实稀释源信号 \\
+\hline
+E6 深度学习直接分类 & 深度网络表示能力可突破？ & MLP 64-32、early-stopping、按类别样本量反比赋权，直接分类 LODO；$\alpha$=1e-2 与宽网络 128-64 敏感性 & 均值 0.5814，$\alpha$1e-2 为 0.5819、宽 0.5850，vs 基线 0.5603、+0.021，< R4 DANN 0.5947 < R3 0.6068；C1 0.6852 为 C1 方向最高、C2 0.5332 低于基线、C3 0.5257 & 证伪，均值层面：深度学习直接分类无效且不如域适应 DANN；宽网络不稳定，C1 0.4914 低于随机；C1 方向 MLP 最强，坐实 CRC 方向存在可迁移信号 \\
+\end{longtable}
+\arrayrulecolor{black}
+}
+
+\textbf{疾病异质性}：跨疾病泛化失败并非方向对称——C1（CRC）存在弱可迁移信号（few-shot 后 0.6567，跨过可用线 0.65；MLP 0.6852 为 C1 方向最高），C2（IBD）不可学（0.5212），C3（Obesity）为患病定义差异（灵敏度 0.024$\to$0.402 但 AUC 上限仍 0.59）。因此「三种疾病之间完全不存在可迁移信息」的表述不成立，准确表述是「统一跨疾病模型不可交付，泛化强度不足且方向高度异质」。
+
+综合以上结果，本问未交付可用的跨疾病预测模型。我们以「最优可达性能（R3，0.6068）加完整验证过程（四策略对比、候选模型均已尝试、衰减归因、方向一致性检验、阈值偏移量化）」的方式如实呈现。未来改进方向包括：引入更多疾病种类和更大样本量以增强共享信号；对目标疾病做无监督阈值重定以缓解基线偏移；探索疾病特异方向的结构化迁移而非简单特征共享；以及与第二问筛选的生物标志物做交叉验证，寻找真正跨疾病保守的微生物信号。
+
+\input{testing.tex}
+\input{sensitivity-analysis.tex}
+\input{strengths-weaknesses.tex}
+\input{conclusion.tex}
+
+\nocite{aitchison1986,tibshirani1996,meinshausen2010}
+\newpage
+\printbibliography[heading=bibintoc,title={参考文献}]
+
+\appendix
+\input{appendix.tex}
+
+\end{document}

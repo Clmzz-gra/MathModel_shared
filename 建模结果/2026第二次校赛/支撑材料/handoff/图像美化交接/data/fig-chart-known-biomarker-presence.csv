@@ -1,0 +1,7 @@
+﻿biomarker,disease,presence_case_pct,presence_control_pct
+Fusobacterium_nucleatum,CRC,41.666667,2.739726
+Peptostreptococcus_stomatis,CRC,56.250000,8.219178
+Porphyromonas_somerae,CRC,20.833333,0.000000
+Bifidobacterium_bifidum,IBD,56.000000,11.764706
+Akkermansia_muciniphila,IBD,28.000000,77.647059
+Bacteroides_fragilis,Obesity,59.146341,44.943820

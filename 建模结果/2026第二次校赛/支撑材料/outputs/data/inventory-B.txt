@@ -1,0 +1,70 @@
+======================================================================
+B 题宏基因组数据盘点报告（阶段 0.2）
+======================================================================
+
+[1] 规模
+    样本数（行）: 484
+    总列数: 1333（元数据列 2 + 特征列 1331）
+
+[2] 三数据集样本量（按 dataset_name 分组）
+    Chatelier_gut_obesity: 253
+    Zeller_fecal_colorectal_cancer: 121
+    metahit: 110
+
+[3] 患病/健康分布（按 dataset_name × disease 分组）
+    患病判定口径：Colorectal='cancer'；IBD='ibd_ulcerative_colitis'/'ibd_crohn_disease'；Obesity='obesity'；其余为健康对照。
+    Zeller_fecal_colorectal_cancer: 患病 48 / 健康 73（共 121）
+        - cancer: 48（患病）
+        - n: 47（健康）
+        - small_adenoma: 26（健康）
+    metahit: 患病 25 / 健康 85（共 110）
+        - n: 85（健康）
+        - ibd_ulcerative_colitis: 21（患病）
+        - ibd_crohn_disease: 4（患病）
+    Chatelier_gut_obesity: 患病 164 / 健康 89（共 253）
+        - obesity: 164（患病）
+        - leaness: 89（健康）
+
+[4] 稀疏度
+    特征矩阵 0 值占比: 0.9221（92.21%）
+    每行非零特征数: min=33, median=104, max=170
+
+[5] 量纲初查
+    非零丰度值: min=1e-05, median=0.077645, max=79.9617
+    每行丰度和: min=99.9999, median=100, max=100
+    （每行丰度和 ≈ 100，即百分比丰度，属定和成分数据，总量纲为 100）
+
+[6] 特征名抽样（7 级层级拆分示例）
+    特征: k__Archaea|p__Euryarchaeota|c__Methanobacteria|o__Methanobacteriales|f__Methanobacteriaceae|g__Methanobrevibacter|s__Methanobrevibacter_smithii
+        k__Archaea
+        p__Euryarchaeota
+        c__Methanobacteria
+        o__Methanobacteriales
+        f__Methanobacteriaceae
+        g__Methanobrevibacter
+        s__Methanobrevibacter_smithii
+    特征: k__Archaea|p__Euryarchaeota|c__Methanobacteria|o__Methanobacteriales|f__Methanobacteriaceae|g__Methanobrevibacter|s__Methanobrevibacter_unclassified
+        k__Archaea
+        p__Euryarchaeota
+        c__Methanobacteria
+        o__Methanobacteriales
+        f__Methanobacteriaceae
+        g__Methanobrevibacter
+        s__Methanobrevibacter_unclassified
+    特征: k__Archaea|p__Euryarchaeota|c__Methanobacteria|o__Methanobacteriales|f__Methanobacteriaceae|g__Methanosphaera|s__Methanosphaera_stadtmanae
+        k__Archaea
+        p__Euryarchaeota
+        c__Methanobacteria
+        o__Methanobacteriales
+        f__Methanobacteriaceae
+        g__Methanosphaera
+        s__Methanosphaera_stadtmanae
+    特征覆盖的域:
+        k__Archaea: 10
+        k__Bacteria: 1279
+        k__Eukaryota: 42
+
+[7] 重复检查（dataset_name + disease + 全部特征全同）
+    完全重复行数: 0
+
+======================================================================

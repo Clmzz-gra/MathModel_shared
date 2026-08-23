@@ -1,0 +1,39 @@
+\section{符号说明}
+
+{\footnotesize
+\begin{longtable}{>{\centering\arraybackslash}p{0.22\textwidth}>{\centering\arraybackslash}p{0.74\textwidth}}
+\caption{模型符号说明}
+\label{tab:notation}\\
+\toprule
+符号 & 定义 \\
+\midrule
+\endfirsthead
+\toprule
+符号 & 定义 \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+$n$ & 某数据集的样本总数，三数据集依次为 121、110、253 \\
+$p$ & 过滤后特征维数，原始 1331 维，近全零过滤后 264 维 \\
+$x_{ij}$ & 第 $i$ 个样本第 $j$ 个物种的相对丰度 \\
+$\delta$ & 零值乘法替换伪值 $=6.5\times10^{-6}$，为检出限的 0.65 倍 \\
+$\mathrm{clr}(x_{ij})$ & 中心化对数比变换 CLR \\
+$g_i$ & 第 $i$ 个样本的几何均值 $g_i=\big(\prod_j x_{ij}\big)^{1/p}$ \\
+$y_i$ & 第 $i$ 个样本的真实标签，患病为 1、健康为 0 \\
+$\sigma(\cdot)$ & sigmoid 函数 $\sigma(z)=1/(1+e^{-z})$ \\
+$\mathbf{w},b$ & Logistic 权重向量 / 截距 \\
+$\lambda$ & 正则强度，即 L2 惩罚系数 \\
+$w_c$ & 按类别样本量反比设权中类别 $c$ 的样本权重 \\
+$\mathrm{AUC}$ & ROC 曲线下面积，主指标且阈值无关 \\
+$\hat{\pi}_j$ & 第 $j$ 个特征在 $B$ 轮 bootstrap 中的入选频率 \\
+$\tau$ & 稳定特征入选频率阈值，取 0.5 \\
+$m$ & BH-FDR 多重比较规模，取 1331 全特征 \\
+$\alpha$ & FDR 显著性水平，取 0.05 \\
+$\mathcal{T}_k,\mathcal{E}_k$ & 第 $k$ 组合的训练集与测试集，LODO 划分 \\
+$f(\mathbf{x})$ & 模型原始分数，即 logit \\
+$A,B$ & Platt 校准的尺度与平移参数，要求 $A<0$ \\
+$\tau^{*}$ & Youden J 最优阈值 \\
+$\Delta_d$ & 疾病 $d$ 的跨疾病衰减量，即跨疾病 AUC 减域内 AUC \\
+\end{longtable}
+}

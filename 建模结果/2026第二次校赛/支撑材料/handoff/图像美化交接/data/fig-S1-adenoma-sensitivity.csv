@@ -1,0 +1,5 @@
+﻿scenario,L2_auc,RF_auc,n
+CRC_adenoma_as_healthy,0.790656,0.845450,121
+CRC_adenoma_as_diseased,0.611175,0.650905,121
+CRC_adenoma_excluded,0.802222,0.866667,95
+CRC_adenoma_separate,0.802222,0.866667,95

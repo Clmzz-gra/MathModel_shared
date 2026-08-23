@@ -1,0 +1,143 @@
+% ============================================================
+% 论文写作素材（独立文件，供队友在阶段 4 写作取材）
+% 对应内部报告 iter-02-sub3-cross-disease.tex（S3 跨疾病预测）
+% 本文件不 \input 进报告正文——正文与素材目的分离（TRAE-报告.md L1）。
+% 溯源/字段路径/可写禁写句一律放本文件，正文不承载。
+% VERSION: 2026-08-21-内容段初版 → 2026-08-21-2.4修订补溯源 → 2026-08-22-E0-E6证据链补充（六轮归因实验 + 更新可写/禁写句）
+% ============================================================
+\documentclass{article}   % 独立编译用；若并入报告正文编译则删除本行与 \begin{document} 等
+\usepackage[UTF8]{ctex}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\begin{document}
+\section{论文写作素材（供队友写作）—— 对应内部报告 iter-02-sub3-cross-disease.tex}
+
+\subsection{章节映射}
+
+本报告对应终稿第 \textbf{第 N 章}「\textbf{跨疾病预测模型}」。建议终稿结构如下：
+\begin{itemize}
+  \item §X.1 建模与求解 \quad $\leftarrow$ 本报告 §2 数据与 LODO 评估框架 + §3 四策略构建
+  \item §X.2 结果分析 \quad $\leftarrow$ 本报告 §4 最优策略交付 + §5 后续模型探索 + §6 性能探讨
+\end{itemize}
+
+\subsection{故事线（按段给出主题句与写作要点）}
+
+\begin{enumerate}
+  \item 【章首段】本问任务转述：建立跨疾病预测模型并探讨性能。要点：核心是「跨疾病」——模型在若干疾病上学到的判别能力能否迁移到训练阶段从未见过的另一种疾病；用 LODO（留一疾病）评估框架做诚实评估。表述库参考：引入问题-数据现象切入式 / 必要性论证式。
+  \item 【建模段】为什么用 LODO + 四策略对比。要点：LODO 保证测试疾病在训练阶段完全不可见；四策略（A 直接迁移 / B 共享标志物 / C 分类学聚合 / D 输出概率修正）在同一评估框架下对比 AUC。表述库参考：模型引入段-方法比较式 / 特点+适用式。
+  \item 【结果段】核心数字 + 对比结论。要点：四策略均值全部低于 0.60，触发后续模型探索流程；候选模型序列 R1--R4 中 R3 加权域适应最优可达 0.6068，仍低于可用性参考线 0.65，以完整验证过程交付。表述库参考：结果与分析段-对比择优式 / 直接汇报最优解式。
+  \item 【证据链段】（2026-08-22 补充）六轮归因实验 E0--E6 排除六类替代解释（批次/容量/模型族/协议/组合/深度学习），跨疾病失败收敛为数据固有限制（疾病特异信号不迁移 + 患病定义差异），且方向不对称（CRC 可学 / IBD 不可学 / Obesity 患病定义差异）。要点：正文压缩为一段+一表（表见 3.6 节对应 tab:s3-evidence），叙事见讲解包 02-问题三分析与思路.md §六 第 5 步。表述库参考：结果与分析段-量化结论+规律解释式。
+\end{enumerate}
+
+\textbf{表述库内嵌规则}：队友无法直接访问 parts 文件，生成者必须把本问用到的 parts 原文摘录直接粘进「内嵌摘录」字段并注明出处。本问无 parts 原文摘录（数据为 0.3 清洗后物种级相对丰度，见数据节）。
+
+\subsection{关键数字表}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{llll}
+\toprule
+数字 & 含义 & 来源（pkl 字段路径） & 论文引用位置 \\
+\midrule
+264 & 过滤后物种级特征数（1331$\to$264） & S3-preprocessed.pkl X\_filtered.shape / meta.filter\_rule & §2 数据 \\
+$6.5\times10^{-6}$ & CLR 零值替换常数 & S3-preprocessed.pkl meta.clr\_delta & §2 数据 \\
+484 & 样本总数 & S3-preprocessed.pkl X\_filtered.shape & §2 数据 \\
+39.7\% / 22.7\% / 64.8\% & C1/C2/C3 测试集正类占比 & S3-results.pkl strategy\_compare.A\_direct.C\{1,2,3\}.test\_pos\_frac & §2 LODO \\
+$C=1.0$ & 策略 A 正则化参数 & S3-results.pkl meta.model & §3.1 \\
+252 & 三病共享物种数（策略 B） & S3-results.pkl strategy\_compare.B\_shared.shared\_feature\_count & §3.2 \\
+106 / 11 & 属级 / 门级聚合特征数 & S3-results.pkl strategy\_compare.C\_genus.n\_features / C\_phylum.n\_features & §3.3 \\
+0.5674 / 0.5882 / 0.5253 & 策略 A 三组合 AUC & S3-results.pkl strategy\_compare.A\_direct.C\{1,2,3\}.auc & §3.5 \\
+0.5603 & 策略 A 均值 AUC & S3-results.pkl strategy\_compare.A\_direct.mean\_auc & §3.5 \\
+0.5417 / 0.6080 / 0.5218 & 策略 B 三组合 AUC & S3-results.pkl strategy\_compare.B\_shared.C\{1,2,3\}.auc & §3.5 \\
+0.5572 & 策略 B 均值 AUC & S3-results.pkl strategy\_compare.B\_shared.mean\_auc & §3.5 \\
+0.3616 / 0.4861 / 0.5440 & 策略 C 属级三组合 AUC & S3-results.pkl strategy\_compare.C\_genus.C\{1,2,3\}.auc & §3.5 \\
+0.4639 & 策略 C 属级均值 AUC & S3-results.pkl strategy\_compare.C\_genus.mean\_auc & §3.5 \\
+0.4141 / 0.5261 / 0.5999 & 策略 C 门级三组合 AUC & S3-results.pkl strategy\_compare.C\_phylum.C\{1,2,3\}.auc & §3.5 \\
+0.5134 & 策略 C 门级均值 AUC & S3-results.pkl strategy\_compare.C\_phylum.mean\_auc & §3.5 \\
+0.5603 & 策略 D 均值 AUC（=基策略 A） & S3-results.pkl strategy\_compare.D\_calibrated.mean\_auc & §3.5 \\
+0.60 & 探索流程触发线（四策略均值全部 $<$ 此值） & S3-results.pkl meta.field\_semantics.fallback.triggered & §5.1 \\
+0.65 & 可用性参考线（均值 $\ge$ 此值或相对 A 提升 $\ge 0.10$） & S3-results.pkl meta.field\_semantics.fallback.usable / fallback.exhausted\_evidence.usable\_line & §5.1 \\
+0.5092 & R1 树模型均值 AUC & S3-results.pkl fallback.R1\_tree.mean\_auc & §5.2 \\
+0.5603 & R2 样本合并均值 AUC（$\equiv$ 策略 A） & S3-results.pkl fallback.R2\_pooled.mean\_auc & §5.2 \\
+0.6068 & R3 加权域适应均值 AUC（最优可达） & S3-results.pkl fallback.R3\_weighted.mean\_auc & §5.2 \\
+0.5947 & R4 DANN 均值 AUC & S3-results.pkl fallback.R4\_dann.mean\_auc & §5.2 \\
+0.5945 / 0.6489 / 0.5771 & R3 三组合 AUC & S3-results.pkl fallback.R3\_weighted.C\{1,2,3\}.auc & §4.2 \\
+0.6446 / 0.2292 / 0.9178 / 0.3385 & R3 C1 阈值辅指标（ACC/灵敏/特异/F1） & S3-results.pkl fallback.R3\_weighted.C1.\{acc,sensitivity,specificity,f1\} & §4.2 \\
+0.5727 / 0.6800 / 0.5412 / 0.4198 & R3 C2 阈值辅指标（ACC/灵敏/特异/F1） & S3-results.pkl fallback.R3\_weighted.C2.\{acc,sensitivity,specificity,f1\} & §4.2 \\
+0.4150 / 0.1585 / 0.8876 / 0.2600 & R3 C3 阈值辅指标（ACC/灵敏/特异/F1） & S3-results.pkl fallback.R3\_weighted.C3.\{acc,sensitivity,specificity,f1\} & §4.2 \\
+0.165 & C3 改用 0.5 概率阈值的灵敏度 & S3-results.pkl strategy\_compare.D\_calibrated.C3.thr05\_sensitivity & §6.3 \\
+0.7811 / 0.8588 / 0.6638 & CRC/IBD/Obesity 域内 AUC（264 特征 5 折 CV） & S3-results.pkl domain\_auc.\{CRC,IBD,Obesity\} & §6.1 \\
+$-0.2138 / -0.2706 / -0.1384$ & CRC/IBD/Obesity 衰减量 & S3-results.pkl decay\_attribution.\{CRC,IBD,Obesity\}.decay & §6.1 \\
+疾病特异信号 / 疾病特异信号 / 患病定义差异 & 三疾病主导归因 & S3-results.pkl decay\_attribution.\{CRC,IBD,Obesity\}.dominant\_cause & §6.1 \\
+387 / 369 & 方向一致 / 方向翻转共享物种数 & S3-results.pkl migration\_analysis.direction\_consistent\_count / direction\_flipped\_count & §6.2 \\
+51.2\% & 方向一致占比 & S3-results.pkl migration\_analysis.consistent\_fraction & §6.2 \\
+$p=0.5364$ & 符号检验 p 值（不显著） & S3-results.pkl migration\_analysis.sign\_test\_pvalue & §6.2 \\
+0.316 / 0.648 & 训练 / 测试患病基线 & S3-results.pkl threshold\_drift.train\_baseline / test\_baseline & §6.3 \\
+$+0.332$ & 基线差 $\Delta$ & S3-results.pkl threshold\_drift.delta\_baseline & §6.3 \\
+0.9205 & Youden 阈值 $\tau^*$ & S3-results.pkl threshold\_drift.youden\_threshold & §6.3 \\
+96.0\% & 阈值落测试分布分位 & S3-results.pkl threshold\_drift.boundary\_position & §6.3 \\
+0.024 & C3 迁移后灵敏度 & S3-results.pkl threshold\_drift.sensitivity & §6.3 \\
+\midrule
+\multicolumn{4}{l}{\textbf{证据链 E0--E6（2026-08-22 补充，六轮归因实验）}} \\
+0.4960 & E0 ComBat 批次校正后均值 AUC（0.5603 $\to$ 0.4960，更差） & S3-combat-corrected.pkl mean\_auc & 证据链 \\
+0.5362 / 0.5594 / 0.5574 / 0.5798 & E1 NCM 欧氏 / NCM 余弦 / PLS-DA 固定 / PLS-DA CV 均值 AUC & S3-e1-baselines.pkl & 证据链 \\
+0.5746 / 0.5748 & E2 贝叶斯 L2 / ARD 均值 AUC（$\approx$ 基线 0.5603） & E2-bayes-results.pkl & 证据链 \\
+0.5898 & E3 few-shot k=50 均值 AUC（+0.0295，仍 $<$ 0.60） & S3-e3-fewshot.pkl & 证据链 \\
+0.5996 / 0.5828 / 0.5995 & E5 融合 F1 / F2 / F3 均值 AUC（C1 融合 0.6273） & S3-e5-source-ensemble.pkl & 证据链 \\
+0.5814 / 0.5947 & E6 MLP 均值 AUC / R4 DANN 对照（C1 MLP 0.6852 为 C1 方向最高） & S3-e6-mlp.pkl & 证据链 \\
+0.6852 / 0.6567 / 0.6273 & C1 方向最高：MLP / few-shot k=50 / 融合 F3 & 各实验 pkl & 方向不对称 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{图表清单}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+图/表 & 论文用途 & 建议插入位置 \\
+\midrule
+四策略跨疾病 AUC 对比（报告表 1） & 四策略 $\times$ 3 组合 AUC 分组柱状图 & §3.5 策略对比节 \\
+三分法衰减归因表（报告表 2） & 三疾病域内/跨疾病 AUC + 衰减量 & §6.1 衰减归因节 \\
+共享标志物方向一致性图（报告图 1） & 方向一致 vs 方向翻转占比 & §6.2 深度迁移节 \\
+C3 阈值漂移诊断图（报告图 2） & 训练/测试分数分布 + Youden 阈值位置 & §6.3 阈值漂移节 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{图表数据源}：全部来自 \texttt{outputs/data/S3-results.pkl}（字段路径见关键数字表）。正式图由队友/代码子代理出图后替换占位符。
+
+\subsection{标准与局限（可写句 / 禁写句）}
+
+\begin{itemize}
+  \item 可写：\ 本问在 LODO 评估框架下四策略均值全部低于 0.60，触发后续模型探索流程；候选模型序列 R1--R4 中 R3 密度比重加权域适应达到最优可达均值 0.6068，仍低于可用性参考线 0.65，故以「最优可达 + 完整验证过程」交付，不宣称可用模型。
+  \item 可写：\ 衰减归因显示主导来源为疾病特异信号（IBD 衰减最大 $-0.271$）与患病定义差异（Obesity）；共享物种方向一致性接近随机（51.2\%，$p=0.536$），共享物种存在性不承载可迁移信号。
+  \item 可写：\ C3 阈值漂移量化显示训练/测试患病基线差 $\Delta=+0.332$，Youden 阈值落测试分布 96.0\% 分位，灵敏度仅 0.024；Platt 校准为单调变换不改变决策边界，无法修复 C3 可直接应用指标。
+  \item 可写（2026-08-22 补充）：\ 为排除模型侧替代解释完成六轮归因实验（ComBat 校正后 AUC 反降、免训练/低容量持平、贝叶斯模型族持平、few-shot 仅 +0.030、源分离融合 +0.039、深度学习均值持平），均无法突破可用性参考线——跨疾病泛化受限收敛为数据固有限制，且失败方向不对称（CRC 方向存在弱可迁移信号，MLP 0.6852 / few-shot 0.6567）。
+  \item 禁止写（2026-08-22 补充）：\ 不得写「换深度学习/更大模型就能解决跨疾病」——E6 MLP 均值 0.5814 低于域适应 DANN 0.5947，宽网络 C1 0.4914 甚至低于随机；不得写「三种疾病之间完全不存在可迁移信息」——方向不对称（CRC 可学），准确表述是「统一跨疾病模型不可交付，泛化强度不足且方向高度异质」。
+  \item 禁止写：\ 不得写「跨疾病模型不可行」的绝对结论——本问结论是「在当前数据与评估框架下未达可用性参考线」，改进方向（更多疾病/更大样本、目标疾病阈值重定、疾病特异方向信号）仍开放。
+  \item 禁止写：\ 不得把 R3 加权域适应 0.6068 表述为「可用模型」或「交付模型」——它是最优可达性能，未达可用性参考线 0.65。
+  \item 禁止写：\ 不得把域内 AUC 与跨疾病 AUC 混用标准——域内 AUC 为 264 特征 5 折 CV 重算（与跨疾病同标准），非 A3 的 1331 特征参考值（CRC 0.814 / IBD 0.885 / Obesity 0.644）。
+  \item 可写：\ 本问预处理含 StandardScaler（均值/方差仅训练集估计），与 S1/S2 的纯 CLR 标准不同，故域内 AUC 与 S1 有差异（$\Delta$ $-0.010$/$-0.028$/$+0.014$，CRC/IBD/Obesity）——正文 §6.1 已显式声明该标准差异。
+\end{itemize}
+
+\subsection{AI 工具使用标注}
+
+本子问题涉及 AI 使用记录：[AI-3-1]（S3 方案设计）、[AI-3-2]（S3 建模实现）、[AI-3-3]（S3 结果分析），见 \texttt{.trae/ai-markers/} 与 \texttt{handoff-S3-report-agent.md} §5，供阶段 3.3 AI 使用声明引用。
+
+\subsection{待裁定项（报告对话登记，供建模/主分析裁定）}
+
+\textbf{状态（2026-08-22）：五项已全部裁决，见 \texttt{result-analysis-S3.md} §一}——① Platt 符号 A$<$0（规格三处已修）；② 域内 AUC 采用 264 口径；③ R2$\equiv$A 登记为规格冗余；④ R3 确认接受域分类器法（w=exp(logit)$\times$n\_train/n\_test，裁剪上界 10）；⑤ pkl 键名按实际取值。以下为裁决前原始登记，仅存档。
+
+\begin{itemize}
+  \item \textbf{批次效应 silhouette}：三分法第 1 来源（批次效应）定量证据用 A 类验证 silhouette=0.070（近 0，不主导），正文已补回该值（A 类验证值，非 pkl 正式字段）。
+  \item \textbf{Platt 符号约定}：math-S3.tex §7.2/§7.3 规格写「A>0 单调递增」，与公式 $P=1/(1+\exp(A f+B))$ 不自洽（该公式下 A>0 单调递减）；代码已正确实现 A=-w、校验 w>0（$\equiv$ A<0）。正文按代码实际标准（A<0）表述，规格符号约定待上游修正（handoff 待裁定项 #1）。
+  \item \textbf{域内 AUC 标准}：正文采用 264 特征重算域内 AUC（与跨疾病同标准），非 A3 的 1331 特征参考值；两者并存于 pkl（domain\_auc vs domain\_auc\_reference\_A3），标准选择待建模确认（handoff 待裁定项 #2）。
+  \item \textbf{R2 $\equiv$ 策略 A}：R2 样本合并与策略 A 数学恒等（LODO 评估框架本身已合并 2 训练疾病），候选模型序列中 R2 无增量，正文如实标注（handoff 待裁定项 #3）。
+  \item \textbf{R3 密度比估计方法}：实现用域分类器法（Logistic 区分 train/test，w=exp(logit)$\times$n\_train/n\_test，裁剪上界 10），非 math-S3.tex §9.3 写的「KLIEP 或 uLSIF」，方法选择待建模确认（handoff 待裁定项 #4）。
+  \item \textbf{pkl 结构命名}：C 拆为 C\_genus/C\_phylum 两键、best\_strategy 语义（strategy\_compare.best\_strategy=A\_direct 为基策略最优，顶层 best\_strategy=R3\_weighted 为最优可达），信息未丢失，字段语义有出入（handoff 待裁定项 #5）。
+\end{itemize}
+
+\end{document}

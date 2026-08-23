@@ -1,0 +1,4 @@
+﻿dataset,case_count,healthy_count,adenoma_count
+CRC,48,47,26.000000
+IBD,25,85,NaN
+Obesity,164,89,NaN

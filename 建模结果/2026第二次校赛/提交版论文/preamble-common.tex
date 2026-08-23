@@ -1,0 +1,20 @@
+% 共享导言区（final-paper 本地版，兼容 mcm-paper.cls）
+% 编译器：xelatex；参考文献后端：biber。
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{colortbl}   % \arrayrulecolor 表格灰线（需显式加载）
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\setlength{\tabcolsep}{4.5pt}
+\emergencystretch=4em
+\usepackage{cleveref}
+\crefname{figure}{图}{图}
+\crefname{table}{表}{表}
+\crefname{equation}{式}{式}
+\crefname{section}{节}{节}
+\crefname{subsection}{小节}{小节}
+\crefname{subsubsection}{小节}{小节}
+\crefname{appendix}{附录}{附录}
+\crefname{algorithm}{算法}{算法}
+\input{../../latex/common/math-commands.tex}
+\addbibresource{references/bib/references.bib}
