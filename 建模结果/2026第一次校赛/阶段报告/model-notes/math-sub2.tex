@@ -1,0 +1,119 @@
+% STATUS: draft
+% LAST_MODIFIED: 2026-07-28
+\documentclass[UTF8]{ctexart}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+
+\title{子问题2 数学推导：评委基本素质指标体系}
+\author{阶段 2.0}
+\date{2026-07-28}
+
+\begin{document}
+\maketitle
+
+\section{四维度框架}
+
+定义评委 $j$ 对论文集合 $\mathcal{P}_j = \{p_1, p_2, \ldots, p_{n_j}\}$ 给出原始评分 $\{x_{j,1}, \ldots, x_{j,n_j}\}$。
+同题共有 $K$ 位评委。
+
+\subsection{维度一：信度（Reliability）}
+
+\textbf{含义}：该评委的评分能否被其他评委复现——评分者间一致性。
+
+\textbf{量化}：成对 ICC(2,1) 均值。对评委 $j$ 与评委 $k$（$k \neq j$），计算两人共同评阅的论文子集 $\mathcal{P}_{jk}$ 上的 ICC：
+
+\begin{equation}
+\text{ICC}_{jk} = \frac{\sigma^2_{\text{between}}}{\sigma^2_{\text{between}} + \sigma^2_{\text{within}}}
+\end{equation}
+
+其中 $\sigma^2_{\text{between}}$ 为论文间方差（系统变异），$\sigma^2_{\text{within}}$ 为评分者内方差（随机误差）。
+
+评委 $j$ 的信度得分：
+\begin{equation}
+R_j^{\text{rel}} = \frac{1}{K-1} \sum_{k \neq j} \text{ICC}_{jk}
+\end{equation}
+
+取值范围：$[0, 1]$，越大越好。阈值：$<0.50$ 差，$0.50-0.75$ 中等，$>0.75$ 良好。
+
+\subsection{维度二：效度（Validity）}
+
+\textbf{含义}：评分能否有效识别论文真实质量——以最终奖项为锚点。
+
+\textbf{量化}：Spearman 秩相关系数。
+
+将论文按评分 $\{x_{j,i}\}$ 排序得秩次 $\{r_i^{(x)}\}$，按奖项等级（未入围=0、三等=1、二等=2、一等=3）排序得 $\{r_i^{(y)}\}$：
+
+\begin{equation}
+\rho_j = 1 - \frac{6 \sum_{i=1}^{n_j} (r_i^{(x)} - r_i^{(y)})^2}{n_j(n_j^2 - 1)}
+\end{equation}
+
+\textbf{大样本注意（PF-005）}：$n_j > 30$ 时 $p$ 值必然显著，必须报告效应量 $|\rho_j|$：
+$<0.1$ 可忽略，$0.1-0.3$ 弱相关，$0.3-0.5$ 中等相关，$>0.5$ 强相关。
+
+\subsection{维度三：公平性（Fairness）}
+
+\textbf{含义}：是否存在系统性评分偏差——评分均值偏离全体均值的程度。
+
+\textbf{量化}：偏差标准化。
+
+\begin{equation}
+\text{bias}_j = \bar{x}_j - \bar{X}_{\text{topic}}
+\end{equation}
+
+其中 $\bar{X}_{\text{topic}}$ 为同题所有评委评分的总均值。标准化：
+\begin{equation}
+z_j^{\text{bias}} = \frac{\text{bias}_j}{\sigma_{\text{bias}}}
+\end{equation}
+
+公平性得分取绝对值：$F_j = |z_j^{\text{bias}}|$，越小越好。$|z| < 1$ 正常，$1-2$ 轻微偏差，$>2$ 显著偏差。
+
+\subsection{维度四：区分力（Discrimination）}
+
+\textbf{含义}：评分能否有效拉开论文差距——避免所有论文得分相同。
+
+\textbf{量化}：评分标准差。
+
+\begin{equation}
+D_j = \sigma_j = \sqrt{\frac{1}{n_j - 1} \sum_{i=1}^{n_j} (x_{j,i} - \bar{x}_j)^2}
+\end{equation}
+
+辅助指标：变异系数 $\text{CV}_j = \sigma_j / \bar{x}_j$，四分位距 $\text{IQR}_j = Q_{75} - Q_{25}$。
+
+阈值：$\sigma_j < 8$ 区分度不足，$\sigma_j > 20$ 评分不稳定。
+
+\section{归一化与综合评分}
+
+四维度量纲不同（ICC $\in [0,1]$，$\rho \in [-1,1]$，$|z| \in \mathbb{R}^+$，$\sigma \in [0, 40]$），需分别 Min-Max 正向化归一化至 $[0, 1]$（方向均为越大越好）：
+
+信度、效度、区分力：越大越好，直接归一；
+公平性：越小越好，用 $1 - z_{\text{norm}}$ 翻转方向。
+
+归一化公式（以信度为例）：
+\begin{equation}
+\tilde{R}_j^{\text{rel}} = \frac{R_j^{\text{rel}} - \min_k R_k^{\text{rel}}}{\max_k R_k^{\text{rel}} - \min_k R_k^{\text{rel}}}
+\end{equation}
+
+四维度归一化后形成指标矩阵 $\mathbf{Z} \in \mathbb{R}^{K \times 4}$，作为子问题3的输入。
+
+\section{数学自检}
+
+\begin{itemize}
+    \item 信度 ICC $\in [0,1]$，量纲一致 $\checkmark$
+    \item 效度 $\rho \in [-1,1]$，效应量阈值独立于 $n$ $\checkmark$
+    \item 公平性 $|z|$ 无界，但评委数有限不会出现极端值 $\checkmark$
+    \item 区分力 $\sigma$ 与数据同量纲（分），可解释 $\checkmark$
+    \item 四维度无循环依赖（均为原始评分+最终奖项的直接函数）$\checkmark$
+\end{itemize}
+
+\section{直觉解释}
+
+\begin{itemize}
+    \item \textbf{信度}：如果你把论文给另一个评委，他会打差不多的分吗？——衡量"可复现性"。
+    \item \textbf{效度}：你给高分的那篇论文，最终真的拿了奖吗？——衡量"看得准不准"。
+    \item \textbf{公平性}：你是不是对所有人都特别严（或特别松）？——衡量"有无偏见"。
+    \item \textbf{区分力}：你到底是每篇都给 70 分，还是能把好论文和差论文拉开差距？——衡量"有没有认真评"。
+\end{itemize}
+
+\end{document}

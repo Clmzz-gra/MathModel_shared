@@ -1,0 +1,1030 @@
+\documentclass{internal-report}
+% 2026-08-14 报告子智能体按新规范重写并替代旧版（旧版留档 archive/iter-04-sub4-v20260809.tex）；数字经 pkl 核对与旧版一致，新增写作素材节。
+\usepackage[UTF8]{ctex}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{url}
+
+% STATUS: done
+% LAST_MODIFIED: 2026-08-14
+% 说明：本稿为「新管线规范」重写测试稿（规范更新后的输出质量测试），
+% 结构按 TRAE-报告.md 2.3 两段式要求：问题转述→模型→求解→结果→灵敏度→素材节。
+
+\title{问题 4 内部报告（重写稿）：多区域算—储—电协同优化（S4）}
+\author{MathModel 建模小组}
+\date{2026-08-14}
+
+\begin{document}
+
+\maketitle
+
+% ============================================================
+\section{问题转述与拆解}
+\label{sec:intro}
+
+\subsection{赛题要求转述}
+
+问题四（S4）要求在前三问（S1 单区域时间维调度、S2 跨区迁移、S3 固定负荷储能优化）基础上建立
+\textbf{多区域算—储—电协同优化模型}：统一考虑任务迁移、电价、碳排放、可用新能源、储能、区域购售电
+边界、网络时延及任务异构性，在\textbf{运行成本、碳排放、网络时延、服务质量、新能源利用率与区域峰值
+净购电}六项指标之间权衡，并比较不同碳约束、电价机制与新能源波动场景下的策略变化（approach-sub4 §1）。
+
+\subsection{与前三问的关系与拆解逻辑}
+
+\begin{itemize}
+  \item \textbf{继承}：S4 = S2（迁移+调度）与 S3（储能+购售电+新能源分配）在\textbf{统一确定性
+        优化}中的联合求解——任务可跨区迁移（S2 层 1），迁移后每区域负荷在时间维调度（S1/S2 层 2），
+        储能与购售电在同一时域内联合决策（S3）。
+  \item \textbf{新增}：新能源基荷匹配策略（S4 核心创新）——以可用新能源的统计下界（P25 分位）作为
+        确定性绿色容量信号，将延迟容忍任务 EDF 预填至该矩形基荷，既提供不依赖电价偶然性的绿电
+        确定性利用，又将层 2 MILP 的 0-1 变量空间压缩至 $\sim 5\%$。
+  \item \textbf{决策架构}：半耦合两级分解（人类裁定，approach §2.1）——区域电力独立（赛题说明 7，
+        无跨区潮流）$\Rightarrow$ 层 2 逐区域独立求解；跨区耦合仅存在于任务迁移（层 1 处理）。
+\end{itemize}
+
+\subsection{求解规模与架构必要性}
+
+全耦合 MILP（任务 $\times$ 区域 $\times$ 时间三维 0-1 变量）约 4000 万变量不可行（S2 F4 核算）；
+基荷预填后层 2 实际 0-1 变量仅 223 个，单场景完整求解约 19 s（详见 §3.1）。架构决策的两点关键
+理由（供论文方法选择段取材）：
+\begin{enumerate}
+  \item 全耦合仅增加跨区任务变量而无电力侧耦合收益（区域电力独立），半耦合以 0.23\% 退路代价
+        获得可解性（S2 验证）。
+  \item 滚动窗（S4 层 2 内）被排除：S4 为确定性场景对比（非在线），全时域一次 MILP 已可解，
+        滚动窗引入短视性损失（approach §9.2）。
+\end{enumerate}
+
+\section{模型建立}
+\label{sec:model}
+
+完整推导见 \texttt{solution/model-notes/math-sub4.tex}（公式标签以 \texttt{eq:*} 标注）。本节约简
+呈现核心结构并注明对应标签，正文公式编号以本文档为准。
+
+\subsection{索引与基本集合}
+\label{sec:sets}
+
+对应 math-sub4.tex \texttt{eq:regions}：六区域集合 $\mathcal{R}$、任务集合 $|\mathcal{J}|=50000$、
+时域 $\mathcal{T}=\{0,\ldots,2405\}$，主时域 $\mathcal{T}^{main}=\{0,\ldots,2399\}$（指标评价+碳约束），
+结清段 $\mathcal{T}^{set}=\{2400,\ldots,2405\}$（计成本不计碳）。任务属性参数（来源
+\texttt{workload\_trace.xlsx}，阶段 0.3 清洗后）：到达小时 $A_j$、时长 $D_j$、GPU 需求 $g_j$、
+最晚完成 $L_j$、来源区域 $s_j$、类型 $k_j\in\{\text{RT},\text{Batch},\text{Training}\}$、
+最大容忍时延 $\ell_j$（20/80/150 ms）、单位 GPU 功率 $p_{k_j}$（0.08/0.10/0.16 MW/GPU）、
+GPU-hour $\text{GH}_j=g_jD_j$。
+
+\subsection{可行域（MaxLatency 裁剪）}
+\label{sec:reach}
+
+对应 math-sub4.tex \texttt{eq:reach}：可迁移目的地集合 $\mathcal{M}_j=\{r:\tau(s_j,r)\le\ell_j\}$。
+阶段 1.4 P1 核验（与 S2 同源）：
+\begin{itemize}
+  \item AITraining（150 ms）：$\mathcal{M}_j=\mathcal{R}$，全图 36/36 可达；
+  \item BatchInference（80 ms）：34/36，$A\to F=82$ ms $>80$ 被禁；
+  \item RealTimeInference（20 ms）：A/B/C 三区互迁（12--15 ms）+ E/F 互迁（18 ms）+ D 锁死。
+\end{itemize}
+
+\subsection{层 1：目的地分配（容量感知贪心，复用 S2）}
+\label{sec:l1}
+
+对应 math-sub4.tex \texttt{eq:assign} 与 \texttt{eq:fallback}。对每任务 $j$，候选目的地按单位成本升序：
+
+\begin{equation}
+  \hat{r}_j = \arg\min_{r \in \mathcal{M}_j,\; \mathcal{D}_r + \text{GH}_j \le 0.9\,\text{Cap}_r\cdot 2400}
+  \big(\text{PUE}_r \cdot \bar{\text{Price}}_r\big),
+  \label{eq:assign}
+\end{equation}
+
+其中 $\mathcal{D}_r$ 为区域 $r$ 已分配 GPU-hour 累计，$\bar{\text{Price}}_r$ 为区域平均电价；候选全满
+时退路选负载率最低区域。遍历顺序与 S2 \texttt{capacity\_aware\_assign} 完全一致，保证 Q3 方案 A/B
+对比口径。
+
+\subsection{基荷预填（新能源基荷匹配策略，S4 核心创新）}
+\label{sec:baseload}
+
+\textbf{基荷矩形}（对应 math \texttt{eq:baseload}）：取可用新能源的统计下界
+$\text{Baseload}_r = Q_{25}(\text{Avail}_{r,t}) = 588$ MW（六区相同，Q1 裁定 P25 分位）——75\%
+的小时可用新能源 $\ge 588$ MW，是可确定性利用的\textbf{低风险电量信号}（类比核电机组以恒定出力
+承担基荷的运行哲学；这是\textbf{可用资源的统计下界}，非对消纳能力的保证，见 §5.4 口径声明）。
+
+\textbf{逐时 AI IT 配额}（对应 math \texttt{eq:quota}）：
+
+\begin{equation}
+  \text{Quota}_{r,t} = \max\Big( \tfrac{\text{Baseload}_r}{\text{PUE}_r} - \text{NonAI}_{r,t},\ 0 \Big),
+  \label{eq:quota}
+\end{equation}
+
+\textbf{EDF 预填}（对应 math \texttt{eq:edf1}/\texttt{eq:edf2}）：候选 = 分配到 $r$ 的延迟容忍任务
+（训练+批量），按 GPU-hour 降序，在满足 GPU 容量与基荷配额的窗口内取最早可行开工小时。填入成功
+$\Rightarrow$ \texttt{baseload=True} + 开工固定，\textbf{不进层 2 MILP 变量空间}；EDF 失败任务第二轮
+改派至候选内负载率最低且未满 90\% 区域重试；仍失败（实测 50 个）进层 2 显式处理。
+
+\textbf{基荷预填实测（阶段 1.4，\texttt{sub4-preprocessed.pkl} \texttt{baseload\_meta} 字段核对）}：
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+区域 & 候选任务 & 基荷填充 & 配额填充率 & 实测瓶颈 \\
+\midrule
+A/B/C & 0 & 改派承接 E/F 溢出 & 7.6\%/6.9\%/0\% & 任务供给不足 \\
+D & 4,657 & 4,646 & 17.3\% & 任务供给不足 \\
+E & 15,076 & 11,497 & 72.8\% & 物理 GPU 容量 \\
+F & 13,543 & 10,110 & 70.9\% & 物理 GPU 容量 \\
+\midrule
+全局 & 50,000 & 33,226 (66.5\%) & GPU-hour 95.3\% & \\
+\bottomrule
+\end{tabular}
+\caption{基荷预填实测（来源 \texttt{sub4-preprocessed.pkl} \texttt{baseload\_meta}：n\_filled 合计
+33,226；gh\_filled 合计 4,782,833 / 总 GH 5,020,787 = 95.3\%；失败任务 11+23+16=50）。}
+\label{tab:baseload}
+\end{table}
+
+\textbf{关键发现}：E/F 是基荷实际主力（GPU 容量锁死下的最大确定性消纳）；D 配额充足但层 1 分配任务
+供给不足（17.3\%）；A/B 经改派承接溢出启用基荷。基荷任务占全局 GPU-hour 95.3\%——层 2 MILP 变量
+空间压缩至 $\sim 5\%$（223 个 0-1 变量，见 §3.1），EDF 贪心成为主导调度器，其与全局最优的偏差由
+Clean-test 配对实验量化（§6.3）。
+
+\textbf{绿电供给核验（阶段 3.1 修订）}：逐时配额 $Q_{r,t}$ 超过受限消纳上限
+$\text{Used}_{r,t}+\text{Rch}_{r,t}$ 的小时占比 30--63\%（超额中位 165--290 MW，六区均值口径）——
+即基荷任务相当比例时段绿电供给不足、需购电补足（购电部分按区域电价计入成本）。因此\textbf{「基荷」
+定位为确定性电量信号与变量压缩手段，非物理绿电锁定}；其调度价值由 Clean-test 次优性（§6.3）与
+求解时间口径（§3.1）体现，不表述为碳减排来源（§4.1 核验）。
+
+\subsection{层 2：每区域独立 MILP（S1 调度框架 + S3 储能框架合并）}
+\label{sec:l2}
+
+\textbf{决策变量}（对应 math \texttt{eq:var}）：时间维调度 $x_{j,h}\in\{0,1\}$（非基荷自由任务，
+$h\in\mathcal{W}_j$，基荷任务 $x_{j,h_j^*}=1$ 固定不进变量空间）+ 储能与电力侧连续变量
+$G_t,S_t,R_t,C^g_t,C^r_t,D_t\ge 0$、$E_t\in\mathbb{R}$（购电/卖电/新能源直供/购电充电/新能源充电/
+放电/SOC）。
+
+\textbf{约束}（对应 math \texttt{eq:c1}--\texttt{eq:c8}）：
+\begin{enumerate}
+  \item \textbf{C1 恰好开工一次}（非基荷）：$\sum_{h\in\mathcal{W}_j} x_{j,h}=1$；
+  \item \textbf{C2 GPU 容量}（重叠精确折算）：自由任务 + 基荷固定 + 实时固定 $\le \text{Cap}_r$；
+  \item \textbf{C3 功率平衡}：$G_t+R_t+D_t = (\text{AI\_IT}_t+\text{NonAI}_t)\cdot\text{PUE}_r + C^g_t + S_t$；
+  \item \textbf{C4 受限消纳}：$R_t + C^r_t \le \text{Used}_t + \text{Rch}_t$（口径见 §5.4）；
+  \item \textbf{C5 SOC 递推}：$E_t = E_{t-1} + \eta_c(C^g_t+C^r_t) - D_t/\eta_d$，$E_{2406}\ge E^{init}$；
+  \item \textbf{C6 边界}：$E^{min}\le E_t\le E^{cap}$；$C\le P^{ch}$、$D\le P^{dis}$、$G\le\overline{G}$、
+        $S\le\overline{S}$（A/B/C 的 $\overline{S}=0$）；
+  \item \textbf{C7 同时充放}：$\eta_c\eta_d<1$ 由成本目标自动排除（实证 0 h）；
+  \item \textbf{C8 碳 $\varepsilon$}：$\sum_{t=0}^{2399} G_t c_{r,t} \le 10^3\varepsilon\,C^{base}_r$，
+        $\varepsilon\in\{1.00,0.95,0.90\}$ 三档对比。
+\end{enumerate}
+
+\textbf{目标函数}（对应 math \texttt{eq:obj}，每区域，含结清段结算）：
+
+\begin{equation}
+  \min\; Z_r = \sum_{t=0}^{2405}\big( G_t\,\text{Price}_{r,t} - S_t\,\text{SellPrice}_{r,t} \big),
+  \qquad Z = \sum_r Z_r.
+  \label{eq:obj}
+\end{equation}
+
+GridSell（卖电）为\textbf{兜底变量}（Q4 裁定）：中国电价体系下 SellPrice 远低于替代区域购电价，
+优化自然形成「GPU 填满 $\to$ 储能满 $\to$ 剩余新能源外卖」的优先级，不存在「卖电 vs 算力」的
+主动取舍（实证：六区卖电合计仅 24.88 GWh，见 §4.1）。
+
+\subsection{六指标评价口径}
+\label{sec:six}
+
+对应 math \texttt{eq:m1}--\texttt{eq:m6}，主时域 0--2399：运行成本 $Z^{main}$、碳排放
+$\sum G_t c_t$（tCO$_2$）、网络时延（GPU-hour 加权平均 $\bar\tau$，全任务口径）、服务质量
+（按时完成率 QoS）、新能源利用率（直供+充电 / 可用新能源）、区域峰值净购电 $\max(G_t-S_t)$。
+
+\section{求解算法}
+\label{sec:solve}
+
+\subsection{主解求解流程与时间口径}
+\label{sec:pipeline}
+
+求解分两阶段：\textbf{阶段 1（层 1 分配 + 基荷预填）}——容量感知贪心分配 50{,}000 任务目的地，
+EDF 预填 33{,}226 个基荷任务（95.3\% GPU-hour），实测耗时 \textbf{18.1 s}（\texttt{preprocess-sub4.py}
+运行时间，阶段 1.4 实测；非 pkl 字段）；\textbf{阶段 2（层 2 每区 MILP）}——仅剩 50 个非基荷任务进入
+0-1 变量空间（223 个：A/B/C 纯 LP、D/E/F 各 49/110/64），六区 \texttt{milp()} 调用耗时合计
+\textbf{1.09 s}（\texttt{s4-results.pkl} \texttt{main.total\_time\_s}；逐区 0.10--0.29 s）。
+
+\textbf{时间口径}：1.09 s 是\textbf{层 2 MILP 求解时间}，不含层 1 分配与基荷预填（18.1 s）——后者
+固定了 95.3\% GPU-hour 的调度，是完整管线的主要耗时；单场景完整求解约 19 s。MILP 之快正源于基荷
+预填把 36.6M 候选变量压缩至 223 个（$\sim 1e5$ 倍压缩），层 2 仅精调剩余 4.7\% 自由度。主解
+$\varepsilon{=}1.00$ 六区域全部 status$=0$（含超容松弛的全局最优）。自洽性检查：同刻充放 0、
+SOC(2406)$\ge$Initial、功率平衡残差 $\sim 1e{-}13$ 全过。
+
+\textbf{GPU 容量可行性口径}：C2 容量约束带超容松弛变量 $s_t\ge 0$（惩罚 $10^6$ 元/GPU-hour，对齐
+S2 Q4 裁定「允许临时超容 + 超容断言告警」；\texttt{cost\_main} 指标不含惩罚项）。主解 F 区 1 小时
+超容 318.7 GH（$\approx 33\%$ 容量，主时域 $0.04\%$；\texttt{s4-results.pkl} \texttt{sols.RegionF.}
+\texttt{slack\_gh\_total}/\texttt{over\_hours}）。成因：层 1 以\textbf{平均负载率阈值}
+（$0.9\,\text{Cap}\cdot 2400$）分配任务而非逐时容量约束，E/F 基荷预填 70.9\% 叠加实时任务后容量
+余量不足；求解器在松弛惩罚与调度成本间选择支付惩罚。严格逐时容量可行性 $2399/2400$ h。
+
+\subsection{基线启发式（Q3 对照）}
+\label{sec:baseline-method}
+
+三组对照（\texttt{s4-baseline-heuristic.pkl}）：\textbf{A 主解}（EDF 基荷预填 + 层 2 MILP 含储能/卖电）；
+\textbf{B1-EDF 基线}（复用 A 的 dest，全 EDF 贪心，无储能/卖电）；\textbf{B2-电价基线}（复用 A 的 dest，
+全电价贪心——窗口内选最低价小时开工，无储能/卖电）。B1/B2 为纯启发式下界，惩罚不计入成本
+（\texttt{s4-baseline-heuristic.pkl} \texttt{b1}/\texttt{b2} 字段）；B2 因 GPU 容量冲突回退最早小时
+5{,}039 个任务（\texttt{b2.n\_late}，回退仍满足 latest 截止、QoS 100\%，§9 未闭合项 6）。
+
+\subsection{LNS 大规模选时通道}
+\label{sec:lns}
+
+\textbf{动机}：$\theta{=}0$ 全任务 MILP $\approx 36.6$M 候选变量（E/F 28{,}619 任务 $\times$ 窗口
+median 1280h），HiGHS 不可解。
+
+\textbf{方法}：LNS（大邻域搜索，方法文献 \cite{shaw1998}）——B2 电价贪心初始解 + 每轮 GH 分层抽
+$K{=}300$ 任务子 MILP（邻域窗口截断 $W{=}168$h 且含当前选时保证单调）+ 接受准则 + 50 轮/区；
+检查点断点续跑（\texttt{lns-sub4.py}）。收敛证据：E/F 末段 10 轮斜率 $-0.011/-0.009$ M/轮
+（\texttt{s4-lns-results.pkl} \texttt{curve} 复算）已趋平。
+
+\section{结果分析}
+\label{sec:result}
+
+\subsection{主解核心数字（六区域）}
+\label{sec:main}
+
+全部数字来源 \texttt{s4-results.pkl} \texttt{main}（主解 $\varepsilon{=}1.00$，主时域 0--2399）：
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lcccccc}
+\toprule
+区域 & 成本 (M元) & 碳排 (kt) & 峰值 (MW) & 利用率 (\%) & n\_x & 角色 \\
+\midrule
+A & 578.28 & 547.08 & 550.0 & 8.5 & 0 & 实时为主，改派承接 \\
+B & 530.06 & 487.95 & 520.0 & 10.0 & 0 & 实时为主，改派承接 \\
+C & 512.91 & 460.19 & 510.0 & 11.8 & 0 & 实时为主 \\
+D & 142.37 & 186.37 & 510.0 & 24.8 & 49 & 算力中心，基荷 17.3\% \\
+E & 188.36 & 124.45 & 370.0 & 36.0 & 110 & 基荷主力 72.8\% \\
+F & 214.67 & 154.75 & 340.0 & 34.0 & 64 & 基荷主力 70.9\% \\
+\midrule
+\textbf{聚合} & \textbf{2166.64} & \textbf{1960.78} & \textbf{550.0} & \textbf{20.83} & 223 & \\
+\bottomrule
+\end{tabular}
+\caption{S4 主解（\texttt{s4-results.pkl} \texttt{main} 及 \texttt{sols} 各区字段：\texttt{cost\_main\_M}/
+\texttt{carbon\_kt}/\texttt{peak\_MW}/\texttt{util\_no\_sell\_pct}/\texttt{n\_x}）。时延 28.07 ms
+（GPU-hour 加权全任务口径，与 S2 迁移任务算术均值 35.3 ms 不同，见 §2.6 口径）、QoS 100\%、
+层 2 求解 1.09 s。}
+\label{tab:main}
+\end{table}
+
+\textbf{主解结果量级核验（对照官方 Baseline 负荷储能解）}：
+\begin{itemize}
+  \item 成本 2166.64M \textbf{vs} S3 固定负荷储能优化 2213.35M：S3 的 2213.35M 是赛题给定 Baseline
+        负荷 + 储能 LP 的解（\textbf{未经过 S2 迁移调度}）；S4 与其同口径（全设施购电）。两者之差
+        $-46.7$M（$-2.1\%$）实际是「S4 调度解 vs 官方 Baseline 负荷解」之差，\textbf{包含任务迁移、
+        负荷结构差异与调度优化的全部收益}；「联合优化 vs 顺序优化」的耦合增益对照（S2 调度输出
+        $\to$ S3 储能）未建立，\textbf{不将该 $-2.1\%$ 表述为耦合增益}（口径声明见 §5.4）。
+        \textbf{注}：2213.35M 为 S3 报告数字（非 S4 pkl 字段），待阶段 3 跨问核验。
+  \item 碳排 1960.78kt \textbf{vs} S3 2044.79kt（$-84$kt，$-4.1\%$）：降幅主要来自\textbf{任务迁移}
+        （层 1 把延迟容忍任务从高碳区迁往 E/F/D 低碳区）与负荷结构差异，\textbf{非基荷预填贡献}——
+        内部对照显示主解碳排高于无基荷预填的 B1 基线（1927.03kt，$+1.7\%$，§4.2）；受限消纳下绿电
+        总量固定，基荷预填只改任务时点、不改购电总量，其价值定位为可解性与加速（§6.4）。
+        2044.79kt 亦为 S3 报告值，待阶段 3 核验。
+  \item 利用率 20.83\% 与 S3 一致：受限消纳锚定下为数据常数，对调度无区分度（§9 未闭合项 4）。
+\end{itemize}
+
+\textbf{储能与卖电执行量（\texttt{s4-results.pkl} \texttt{sols} 数组求和复算）}：主时域储能放电合计
+\textbf{296.49 GWh}（D 区 75.35 GWh 最大），充电合计 339.83 GWh；六区卖电合计 \textbf{24.88 GWh}
+（D 24.83 + E 0.05）——GridSell 兜底行为实证（GPU 满 + 储能满后）。循环损耗
+$\eta_c\eta_d\approx 0.86$。
+
+% ===== 正式图占位 1：区域成本碳排 =====
+\begin{figure}[H]
+\centering
+% 正式图占位：数据源 s4-results.pkl（sub4-model.py，2026-08-09）→ 图名 sub4-region-cost-carbon.pdf
+% 建议论文位置：§7 结果段（tab:main 旁）
+\rule{0.9\textwidth}{4cm}
+\caption{六区域成本与碳排放分布（A/B/C 高电价高载，E/F 低价低碳）。正式图待队友出图替换。}
+\label{fig:region}
+\end{figure}
+
+\subsection{基线对比（六指标）}
+\label{sec:baseline-cmp}
+
+来源 \texttt{s4-baseline-heuristic.pkl} \texttt{b1}/\texttt{b2}（含 \texttt{main\_A} 主解对照）：
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+指标 & A 主解 & B1-EDF 基线 & B2-电价基线 \\
+\midrule
+运行成本 (M元) & \textbf{2166.64} & 2253.57 & 2216.74 \\
+碳排放 (kt) & 1960.78 & \textbf{1927.03} & 1929.34 \\
+区域峰值净购电 (MW) & 550.0 & 497.1 & 661.6 \\
+网络时延 (ms) & 28.07 & 28.07 & 28.07 \\
+服务质量 QoS (\%) & 100.0 & 100.0 & 100.0 \\
+新能源利用率 (\%) & 20.83 & 20.83 & 20.79 \\
+\bottomrule
+\end{tabular}
+\caption{主解与纯启发式基线六指标对比（\texttt{s4-baseline-heuristic.pkl}）：主解成本优于 B1
+$-86.93$M（$-3.9\%$）、优于 B2 $-50.10$M（$-2.3\%$）；碳排略升（$+1.7\%$）来自储能峰谷购电结构。
+\textbf{注}：B1/B2 为无储能纯贪心基线，惩罚不计入表中成本（\texttt{s4-baseline-heuristic.pkl}）；主解
+超容仅 1h（318.7 GH），B1 无容量回退（\texttt{b1.n\_late}=0），B2 容量回退 5{,}039 个任务
+（\texttt{b2.n\_late}，回退仍满足 latest 截止、QoS 100\%，§9 未闭合项 6）。成本比较为近似口径
+（基线超容惩罚不入成本，§5.4）。}
+\label{tab:baseline}
+\end{table}
+
+主解成本优于\textbf{对照集内}纯启发式基线（B1/B2 内 EDF 预填未隐没更优解，§6.3 补充
+$\theta{=}0.3$ 构造对照见口径说明）；B1$\to$B2（EDF $\to$ 电价贪心）节省 36.83M（1.6\%），验证
+「电价感知选时」方向有效。
+
+\subsection{成本归因分解}
+\label{sec:decomp}
+
+逐项关闭储能/卖电后的 MILP 重跑（\texttt{s4-cost-decomposition.pkl} \texttt{decomposition} 字段）：
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lrl}
+\toprule
+策略项 & $\Delta$ (M元) & 说明 \\
+\midrule
+储能时间搬运 & $+137.71$ & 主贡献；F 区结构性刚需（G+D$>$MaxImport 111h） \\
+卖电 & $-1.40$ & 可忽略（六区合计仅 24.88 GWh） \\
+双禁合计 & $+137.46$ & 储能+卖电联合贡献 \\
+调度（A$_{\text{no\_both}}$ $-$ B1） & $-224.38$ & EDF 基荷 vs 全 EDF 贪心 \\
+\midrule
+总节省 & $-86.93$ & vs B1 基线 2253.57M \\
+\bottomrule
+\end{tabular}
+\caption{成本归因（\texttt{s4-cost-decomposition.pkl} \texttt{decomposition}：\texttt{storage\_M}/
+\texttt{sell\_M}/\texttt{both\_M}/\texttt{scheduling\_M}/\texttt{total\_M}）。储能时间搬运是主要
+成本项（F 区功率平衡刚需，G+D$>$MaxImport=340MW 共 111h，\texttt{s4-results.pkl} 复算），调度
+结构贡献最大负项（基荷预填 vs 全 EDF）。\textbf{口径注}：A\textsubscript{no\_both} 禁储能后 F 区
+不可行（\texttt{n\_infeasible}=1），其「成本」与「调度 $-224.38$M」「总节省 $-86.93$M」基于含
+不可行/超容的对照解，\textbf{仅作方向参考，不作严格归因}。}
+\label{tab:decomp}
+\end{table}
+
+\textbf{储能是 F 区功率平衡的结构性刚需}：主解中 F 区有 111h 的 G+D $>$ MaxGridImport（340 MW）。
+
+\subsection{场景对比（4 组关键对比）}
+\label{sec:scenario}
+
+来源 \texttt{s4-results.pkl} \texttt{scenarios}（\texttt{eps-0.95}/\texttt{eps-0.9}/
+\texttt{price-1.5}/\texttt{renew-1.2}/\texttt{renew-0.8}）：
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lccccc}
+\toprule
+场景 & 成本 (M元) & 碳排 (kt) & 峰值 (MW) & 利用率 (\%) & 可行性 \\
+\midrule
+S0 基准 & 2166.64 & 1960.78 & 550.0 & 20.83 & 全可行 \\
+碳约束 $\varepsilon{=}0.95$ & 143.54 & 177.05 & 510.0 & 24.8 & 仅 D 可行$^{\dagger}$ \\
+碳约束 $\varepsilon{=}0.90$ & --- & --- & --- & --- & 全不可行 \\
+峰谷价差 $\times 1.5$ & 2704.16 & 1960.79 & 550.0 & 20.83 & 全可行 \\
+新能源 $+20\%$ & 1959.99 & 1793.03 & 550.0 & 20.83 & 全可行 \\
+新能源 $-20\%$ & 2383.94 & 2128.59 & 550.0 & 20.83 & 全可行 \\
+\bottomrule
+\end{tabular}
+\caption{S4 场景对比（\texttt{s4-results.pkl} \texttt{scenarios}：\texttt{cost\_main\_M}/
+\texttt{carbon\_kt}/\texttt{peak\_MW}/\texttt{util\_no\_sell\_pct}/\texttt{feasible}）。碳约束压降
+仅 D 区可行（区域碳排刚性，§5.3）；电价上涨成本线性抬升（碳结构不变）；新能源 $\pm20\%$ 成本近似
+对称（$-206.65$M/$+217.30$M）。$^{\dagger}$ 该行成本/碳排/峰值/利用率均为\textbf{D 区单区值}（其余
+五区不可行，\texttt{n\_infeasible}=5 口径见 §5.3）；$\varepsilon$ 帽值按 §5.4 声明重算（renew 场景
+用自身 free 解）。利用率各场景恒 20.83\% 为受限消纳锚定下的数据常数，对调度无区分度。}
+\label{tab:scenario}
+\end{table}
+
+% ===== 正式图占位 2/3：场景对比 + 权衡热力图 =====
+\begin{figure}[H]
+\centering
+% 数据源 s4-results.pkl（scenarios）→ sub4-scenario-compare.pdf；论文位置：§7 场景对比
+\rule{0.9\textwidth}{4cm}
+\caption{场景对比双轴柱状（成本/碳排，部分可行标注）。正式图待队友出图替换。}
+\label{fig:scen}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+% 数据源 s4-results.pkl（scenarios，全可行集）→ sub4-tradeoff-heatmap.pdf；论文位置：§7 场景对比
+\rule{0.9\textwidth}{4cm}
+\caption{全可行场景 $\times$ 指标「向好变化\%」权衡热力图（绿=变好，红=变差）。正式图待队友出图替换。}
+\label{fig:heat}
+\end{figure}
+
+\subsection{拐角解检测}
+\label{sec:corner}
+
+统计主解六区连续变量（G/S/D/C/E）触碰自身约束边界的逐时比例（主时域 0--2399，容差 $1e{-}6$；
+由 \texttt{s4-results.pkl} \texttt{sols} 与 \texttt{sub4-preprocessed.pkl} \texttt{storage} 按
+\texttt{inspect-sub4-corner.py} 逻辑复算）：
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lccccccc}
+\toprule
+区域 & G撞顶\% & S零\% & D上限\% & D零\% & C上限\% & E边界\% & 边界合计 \\
+\midrule
+A & 6.2 & 100.0 & 8.3 & 87.5 & 7.0 & 78.4 & 0.333 \\
+B & 5.0 & 100.0 & 8.3 & 87.5 & 8.0 & 78.6 & 0.333 \\
+C & 5.1 & 100.0 & 8.3 & 87.5 & 7.7 & 78.9 & 0.333 \\
+D & 4.4 & 91.2 & 2.1 & 79.2 & 8.5 & 70.1 & 0.146 \\
+E & 20.8 & 100.0 & 4.9 & 85.8 & 0.0 & 69.2 & 0.158 \\
+F & 26.2 & 100.0 & 3.0 & 80.5 & 0.0 & 61.2 & 0.151 \\
+\midrule
+\textbf{聚合} & & & & & & & \textbf{0.242} \\
+\bottomrule
+\end{tabular}
+\caption{拐角解检测（复算）：聚合 0.242，未触发 $>80\%$「拐角解主导」标记。}
+\label{tab:corner}
+\end{table}
+
+\textbf{解读}：高比例列均为\textbf{结构性绑定}——S 零\% = 100\%（A/B/C SellLimit=0 且无富余、
+E/F GPU 满载无余电，GridSell 兜底变量的预期行为）；E 边界 61--79\%（SOC 长期高位运行，基荷预填后
+负荷稳定、储能仅微调）；G 撞顶 F 26.2\%（F 区功率平衡刚需）；D 区边界合计最低（0.146，储能容量
+900 MWh 最大、调度空间最充裕）。非病态退化，属约束活性正常分布。
+
+\subsection{假设检验回填}
+\label{sec:hypothesis}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+假设 & 检验 & 结果 \\
+\midrule
+H1 层 2 各区域 MILP 可行 & status & $\checkmark$ 主解 6 区全 status$=0$（层 2 合计 1.09s） \\
+H2 基荷不超 GPU/配额 & 后验 & $\checkmark$ E/F 填充 72.8\%/70.9\%（GPU 容量锁死）；D 17.3\%（任务供给不足） \\
+H3 同时充放自动排除 & 最优解后验 & $\checkmark$ 六区域同刻充放 $=0$ \\
+H4 $\varepsilon$ 档有效 & 三档扫描 & 修订：$\varepsilon{=}0.95$ 仅 D 可行、$0.90$ 全不可行 $\to$ 区域碳排刚性 \\
+H5 EDF 偏差量级 & Clean-test 配对 & $\checkmark$ $\theta{=}0.7/0.5/0.3$ 档 0.88/2.10/2.92\%（§6.3）；主解档推断 $<0.88\%$ \\
+H6 GridSell 兜底成立 & 最优解后验 & $\checkmark$ 卖电仅 D 24.83 GWh + E 0.05 GWh（GPU 满 + 储能满后） \\
+H7 终态约束可行 & SOC(2406) & $\checkmark$ 六区域 SOC(2406)$\ge$Initial 全合规 \\
+\bottomrule
+\end{tabular}
+\caption{假设检验回填（H1--H7，来源：\texttt{s4-results.pkl}/\texttt{sub4-preprocessed.pkl}/
+\texttt{s4-baseline-heuristic.pkl}）。}
+\label{tab:h}
+\end{table}
+
+\section{灵敏度与口径说明}
+\label{sec:sens}
+
+\subsection{峰谷价差灵敏度}
+\label{sec:sens-price}
+
+来源 \texttt{s4-sensitivity.pkl} \texttt{price}（\texttt{agg.cost\_main\_M}/\texttt{carbon\_kt}）：
+价差 $\times 1.0 \to 2.0$，成本线性 2166.64 $\to$ 3241.28M（斜率 $\sim 1074$ M/倍），碳排不变
+（1960.79kt）——电价机制改变成本水平而不改变调度结构（利用率/储能策略不变）。
+
+% ===== 正式图占位 4：峰谷价差灵敏度 =====
+\begin{figure}[H]
+\centering
+% 数据源 s4-sensitivity.pkl（price）→ sub4-sens-price.pdf；论文位置：§8 灵敏度
+\rule{0.9\textwidth}{4cm}
+\caption{峰谷价差灵敏度：成本线性 / 碳排不变 / 储能套利饱和。正式图待队友出图替换。}
+\label{fig:sensp}
+\end{figure}
+
+\subsection{新能源波动灵敏度}
+\label{sec:sens-renew}
+
+来源 \texttt{s4-sensitivity.pkl} \texttt{renew}：$\times 0.8 \to 1.2$，成本 2383.94 $\to$ 1959.99M、
+碳排 2128.59 $\to$ 1793.03kt，均近似线性且方向正确（相对基准 $\pm 10\%$ 量级，鲁棒性中等）。
+
+% ===== 正式图占位 5：新能源波动灵敏度 =====
+\begin{figure}[H]
+\centering
+% 数据源 s4-sensitivity.pkl（renew）→ sub4-sens-renew.pdf；论文位置：§8 灵敏度
+\rule{0.9\textwidth}{4cm}
+\caption{新能源波动灵敏度：成本碳排线性 / 策略不变。正式图待队友出图替换。}
+\label{fig:sensr}
+\end{figure}
+
+\subsection{碳约束 $\varepsilon$（区域碳排刚性）}
+\label{sec:sens-eps}
+
+来源 \texttt{s4-sensitivity.pkl} \texttt{eps} 与 \texttt{s4-d-eps-scan.pkl}：
+\begin{itemize}
+  \item $\varepsilon{=}0.92$--0.96 仅 D 可行（\texttt{n\_infeasible}=5；聚合成本 150.99/144.09/143.28M
+        仅计可行区），$\varepsilon{=}0.90$ 全不可行（\texttt{n\_infeasible}=6）；
+  \item D 区 $\varepsilon_{\min}=0.9053$（\texttt{s4-d-eps-scan.pkl} \texttt{eps\_min}），
+        $\varepsilon$ 从 $\varepsilon_{\min}$ 到 1.00 的 Pareto 前沿：成本 173.34 $\to$ 142.37M、
+        碳排 168.71 $\to$ 186.37kt（\texttt{s4-d-eps-scan.pkl} \texttt{cost}/\texttt{carbon}
+        端点 + \texttt{s4-results.pkl} D 区值）；
+  \item 其余五区碳排刚性：A/B/C $\varepsilon_{\min}\approx 0.99$、E/F $\approx 0.96$
+        （\texttt{s4-sensitivity.pkl} \texttt{eps} 各档 \texttt{n\_infeasible} 推断）。
+\end{itemize}
+
+\textbf{与 S3 的 D 区 $\varepsilon_{\min}$ 不可直接比较}：两帽值分母不同（S3 为官方 Baseline 碳排、
+S4 为 E0\_S4 自身 free 解，\texttt{s4-results.pkl} \texttt{e0\_s4\_kt}/\texttt{s3\_carbon\_ref\_kt}），
+D 区压降空间扩大源于负荷结构与基准差异，非模型能力变化。
+
+% ===== 正式图占位 6/7：碳约束灵敏度 + D 区 Pareto =====
+\begin{figure}[H]
+\centering
+% 数据源 s4-sensitivity.pkl（eps）→ sub4-pareto-carbon.pdf；论文位置：§8 灵敏度
+\rule{0.85\textwidth}{4cm}
+\caption{碳约束灵敏度：逐区域 $\varepsilon_{\min}$ 与降碳空间（仅 D 区有压降空间）。正式图待队友出图替换。}
+\label{fig:pareto}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+% 数据源 s4-d-eps-scan.pkl → sub4-d-marginal-cost.pdf；论文位置：§8 灵敏度
+\rule{0.9\textwidth}{4cm}
+\caption{D 区 $\varepsilon$-Pareto 边际成本（碳排 $-$ 成本权衡曲线）。正式图待队友出图替换。}
+\label{fig:dpar}
+\end{figure}
+
+\subsection{口径声明汇总（供终稿写作，不得删改）}
+\label{sec:caliber}
+
+\begin{enumerate}
+  \item \textbf{受限消纳口径}：$R_t+C^r_t \le \text{Used}_t+\text{Rch}_t$（基准观测值，S3 B1 同口径）。
+        原方案自由消纳 $R+C^r\le\text{Avail}$ 实测退化——可用新能源（500--1100 MW）恒大于负荷，
+        LP 购电 $\to 0$、碳排 $\to 0$、$\varepsilon{=}1.00$ 不绑定、成本为负（卖电套利），场景对比
+        失效（与 S3 R1 同因）。\textbf{量纲说明}：P25(Avail)=588 MW 是\textbf{可用资源}的统计下界，
+        受限消纳上限 Used+Rch 是\textbf{消纳能力}的观测上限，两者非同一物理量（§2.4 绿电供给核验
+        显示 Quota 超消纳上限 30--63\% 小时）；基荷策略以 P25 提供确定性电量信号，消纳受 C4 约束
+        锚定，两者在模型中独立发挥作用。
+  \item \textbf{碳基准 = S4 自身无约束解（E0\_S4）}：S4 负荷结构（实时+基荷任务）与 S3 给定负荷
+        不同，E/F 固定负荷最小购电碳排已超 S3 基准（E 121.2 vs 84.6 kt，
+        \texttt{s4-results.pkl} \texttt{e0\_s4\_kt}/\texttt{s3\_carbon\_ref\_kt} 核对），直接套用
+        S3 基准导致 $\varepsilon{=}1.00$ 主解不可行，故以 S4 自身 free 解为基准（阶段 2.1 修订）。
+  \item \textbf{碳帽语义}：$\varepsilon{=}1.00$ 的碳帽 = 基准场景\textbf{自身 free 解碳排}——主解碳排
+        即无碳约束解的碳排，\textbf{$\varepsilon$ 对主解不施加额外约束}，碳排指标按评价指标解读
+        （S3 帽值为外部给定 Baseline、含约束信息，两者语义不同，论文不跨子问题比较 $\varepsilon$
+        数值）。场景碳帽重算规则：\textbf{renew 场景用自身 free 解重算}（新能源波动改变消纳能力、
+        碳排水平整体位移，renew$-20\%$ 碳排 2128.59kt 相对\textbf{自身}帽值仍 $\varepsilon{=}1.00$
+        合规，不能与 S0 帽值 1960.78kt 直接比较）；\textbf{price 场景不重算}（电价不影响碳排水平，
+        帽值沿用 S0 的 E0）。
+  \item \textbf{成本比较口径}：2166.64M vs S3 2213.35M 的 $-2.1\%$ 是「S4 调度解 vs 官方 Baseline
+        负荷解」之差，\textbf{包含任务迁移、负荷结构差异与调度优化的全部收益}，\textbf{不表述为
+        「联合优化 vs 顺序优化」的耦合增益}（后者对照未建立）。
+  \item \textbf{利用率锚定}：受限消纳口径下新能源利用率不可作为优化目标，论文需说明「利用率=评价
+        指标而非目标」的边界。
+  \item \textbf{超容惩罚不入成本}：\texttt{cost\_main} 不含 $10^6$ 元/GH 惩罚项；B1 无容量回退
+        （\texttt{b1.n\_late}=0）、B2 容量回退 5{,}039 个任务（\texttt{b2.n\_late}，\texttt{
+        s4-baseline-heuristic.pkl} 字段）——回退任务按最早小时开工仍满足 latest 截止（QoS 100\%），
+        但可能 GPU 超容且其惩罚不入成本，故「优于 B2」被系统性高估（近似口径）。
+\end{enumerate}
+
+\section{基荷策略合理性检验与 EDF 次优性量化}
+\label{sec:baseload-test}
+
+\subsection{四类隐患与检验}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+隐患 & 实测证据 & 严重度 \\
+\midrule
+层1 贪心分配失衡 & E/F 84\% vs D 15\%，A/B 9\%，C 16\% & 高 \\
+EDF 放弃电价视角 & 基荷开工电价分位 mean $\approx 50\%$，22\% 高价 & 中 \\
+窗口极宽浪费自由度 & 窗口 median 1196h，79\% $\ge 500$h & 低 \\
+「基荷=绿色」打折 & D fill 17\%，C 0\%，实际靠购电 & 低 \\
+\bottomrule
+\end{tabular}
+\caption{S4 基荷策略四类隐患（阶段 2.1 数据特征，供讨论节引用；非 pkl 关键字段，待阶段 3 复核）。}
+\label{tab:pitfall}
+\end{table}
+
+\subsection{基荷改进实验证伪（负载均衡 + 电价感知预填）}
+
+验证「负载均衡 + 电价感知预填」能否降本（层 1 排序键加 $\lambda\cdot occ$ 容量惩罚 $\lambda{=}0.3$；
+基荷预填 EDF $\to$ 电价升序；存档 \texttt{outputs/scratch/archive/preprocess-sub4-balanced-v1.py}）：
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lccc}
+\toprule
+指标 & 旧版 EDF 主解 & 改进版 & $\Delta$ \\
+\midrule
+成本 (M元) & 2166.64 & 2159.67 & $-0.3\%$（远低于预期 50--80M） \\
+碳排 (kt) & 1960.78 & 2013.93 & $+2.7\%$（恶化） \\
+D 区成本 (M元) & 142.37 & 181.45 & $+39$M（D 是 E/F/D 中最贵区域，导流增本） \\
+E/F 成本 (M元) & 188/215 & 163/162 & $-78$M（省下但被 D 抵消） \\
+\bottomrule
+\end{tabular}
+\caption{基荷改进实验证伪：负载均衡在「D 区更贵」前提下不降本且碳排恶化，已回退旧版 EDF 主解
+（阶段 2.1 记录；改进版数字非给定 pkl 字段，来源 result-analysis §7.6，待阶段 3 复核）。}
+\label{tab:bal}
+\end{table}
+
+\textbf{结论}：改进几乎无效且碳排恶化——负载均衡在「D 区 PUE$\times$均价 541 $>$ E 467/F 500」
+前提下不降本（把任务导流到更贵区域反而增本增碳）。该结论作为\textbf{反面案例}写入论文
+（区域均衡并非总是降本）。
+
+\subsection{Clean-test 配对：EDF 预填 vs MILP 全局选时（三档 $\theta$）}
+\label{sec:clean}
+
+回答方案书 \textbf{R1}（EDF 预填 vs MILP 全局选时偏差）。方法：$\theta$ 档基荷预填（EDF 到
+$\theta\times$ 区域 GPU 容量停止）+ \textbf{禁改派}（释放任务留原区）；GH 分层抽样 40 任务/区；
+S\_EDF（样本 EDF 固定）与 S\_MILP（样本 MILP 变量，主时域同域窗口）配对；$\Delta$ 按 GH 比例
+放大。来源 \texttt{s4-clean-results-ratio\{030,050,070\}.pkl}（附件数据目录）：
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lcccl}
+\toprule
+$\theta$ & 释放任务 & 释放 GH & $\Delta$ (M) & $\Delta$\%（对主解 2166.64M） \\
+\midrule
+0.7 & 18,461 & 926,855 & $+19.13$ & $+0.88\%$（边际） \\
+0.5 & 23,412 & 1,876,315 & $+45.52$ & $+2.10\%$（显著） \\
+0.3 & 26,099 & 2,825,504 & $+63.24$ & $+2.92\%$（显著） \\
+\bottomrule
+\end{tabular}
+\caption{Clean-test 配对实验（\texttt{s4-clean-results-ratio\{030,050,070\}.pkl}
+\texttt{delta.total\_M}/\texttt{pct\_of\_main}，释放任务数 \texttt{n\_released} 复算）：$\theta$
+越低（释放任务越多）MILP 选时收益越大。\textbf{注}：0.88\% 对应 $\theta{=}0.7$（预填 81.5\% GH、
+释放 18.5\% GH 交 MILP）；主解预填 95.3\% GH（仅释放 4.7\%、50 个 EDF 失败窄窗任务），其次优性由
+$\theta$ 单调性推断 \textbf{$<0.88\%$}，且两构造释放的任务集合不同，$\sim 0.9\%$ 为\textbf{方向性
+高估，仅作上界参考}。}
+\label{tab:clean}
+\end{table}
+
+\textbf{结论}：EDF 预填（最早可行）次优性\textbf{不可忽略}——$\theta{=}0.7$ 档（预填 81.5\% GH）
+下交 MILP 选时收益 0.88\%（$>0.5\%$ 可忽略线）；主解预填 95.3\% GH，其次优性由 $\theta$ 单调性
+推断\textbf{小于 0.88\%}；若把 E/F 释放任务（56\% GH）交 MILP 选时，收益可达 2.92\%（且为下界，
+头部大任务未入样本）。单位 GH 增益 19--26 元/GH $\approx$ 电量（0.15 MWh/GH）$\times$ 峰谷价差
+（物理自洽）。主解叙事「EDF 预填次优性可忽略」不成立。
+
+\textbf{已知边界}（如实披露）：配额自由度不对称（MILP 样本不受 AI\_IT 配额约束，轻微高估 $\Delta$）；
+GH 线性放大为近似；单次抽样无方差；不覆盖 $\theta$ 预填锁死的头部大任务。
+
+\subsection{LNS 结果与主解定位}
+\label{sec:lns-result}
+
+来源 \texttt{s4-lns-results.pkl}（附件数据目录 \texttt{per\_region}）：
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+区域 & EDF 全量 & B2 贪心（起点） & \textbf{LNS 终值} & EDF$\to$LNS \\
+\midrule
+E & 194.81 & 190.72 & \textbf{187.15} & $+7.66$M \\
+F & 221.91 & 218.63 & \textbf{214.82} & $+7.09$M \\
+$\theta{=}0.3$ 合计 & 2154.35 & 2146.99 & \textbf{2139.60} & $+14.75$M \\
+\bottomrule
+\end{tabular}
+\caption{LNS 结果（\texttt{s4-lns-results.pkl} \texttt{cost\_edf}/\texttt{cost\_b2}/
+\texttt{cost\_final}，$\theta{=}0.3$ 结构、50 轮/区；A/B/C/D 无释放任务，A/B 为 $\theta{=}0.3$
+结构值（禁改派、承接任务少于主解，故低于主解 578.28/530.06），C/D 与主解相同 512.91/142.37）。
+终值 2139.60M；E/F 终值超容 slack 30{,}953/30{,}944 GH（\texttt{curve} 末轮
+\texttt{slack\_gh} 字段）。}
+\label{tab:lns}
+\end{table}
+
+% ===== 正式图占位 8：LNS 收敛 =====
+\begin{figure}[H]
+\centering
+% 数据源 s4-lns-results.pkl（per_region curve）→ sub4-lns-convergence.pdf；论文位置：§8 灵敏度/附录
+\rule{0.9\textwidth}{4cm}
+\caption{LNS 收敛曲线（E/F 区 50 轮，EDF 基线虚线对照 + B2 起点/终值标注；末段斜率
+$-0.011/-0.009$ M/轮已趋平）。正式图待队友出图替换。}
+\label{fig:lnscurve}
+\end{figure}
+
+\textbf{结论与归因}：
+\begin{itemize}
+  \item $\theta{=}0.3$ 结构总成本 \textbf{2139.60M}，比主解 2166.64M 低 27M（1.2\%）——但该比较含
+        \textbf{多重口径差异，不可直接解读为「更优构造」}：(i) 禁改派（释放任务留原区）；
+        (ii) 任务留 E/F 低价区；(iii) 预填仅 30\%；(iv) \textbf{超容不计成本}——LNS 终值 E/F 区
+        仍含超容（slack 各 $\approx 31$k GH），主解超容仅 318.7 GH（§3.1 口径声明）；（v）A/B
+        表注原误标「沿用主解值」，实为 $\theta{=}0.3$ 结构值（已纠正，见 tab:lns 表注）。按主解
+        A/B 值替换后合计 2165.58M：27M 差异中约 26M 来自 A/B 结构口径（禁改派承接任务少），仅约
+        1M 来自 E/F 选时改进。故 §4.2「EDF 预填未隐没更优解」结论收窄为\textbf{对照集内
+        （B1/B2）成立}。
+  \item EDF$\to$LNS 增量 \textbf{$+0.68\%$}（主解成本口径），对比起点与 clean-test 不同：clean-test
+        的 2.92\% 是 EDF 起点直接全局选时，此处 0.68\% 是 B2（电价贪心）起点的\textbf{增量改进}；
+        EDF$\to$B2 本身约 $\sim 1.6\%$，故 EDF$\to$LNS 全程约 \textbf{2.3\%}（达 clean-test 上界约
+        78\%）——与 2.92\% 的差距主要来自 $W{=}168$h 邻域截断 + B2 起点已在全窗口选最低价（多在
+        168h 外）$\to$ LNS 只能「保持或改早」，排除「改晚到低价时段」方向（恰是 clean-test 大增益
+        来源）。\textbf{这是建模选择，非启发式质量}，LNS 增益为截断窗口保守下界。
+  \item 哨兵项：B1/B2 基线容量回退计数 \texttt{b1.n\_late}=0 / \texttt{b2.n\_late}=5{,}039
+        （\texttt{s4-baseline-heuristic.pkl}，不计入 \texttt{cost\_main\_M}）；每轮子 MILP gap$\approx 0$；
+        LNS 终值 E/F 区仍含超容（slack 各 $\approx 31$k GH），2139.60M
+        为含超容口径成本，与主解成本比较为近似口径。
+\end{itemize}
+
+\subsection{主解定位决策（供终稿写作）}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{>{\centering\arraybackslash}p{3.6cm} >{\centering\arraybackslash}p{2.6cm} >{\raggedright\arraybackslash}p{7.0cm}}
+\toprule
+组件 & 定位 & 理由 \\
+\midrule
+基荷预填（EDF）+ 层2 MILP（含储能） & \textbf{主解}（保持现状） & 方法学精确、单场景 $\sim$19s（层1 18.1s + 层2 1.09s）可复现、6 场景已全跑 \\
+基荷预填 & \textbf{加速解法} & 36.6M 变量 $\to$ 223 变量（$\sim 1e5$ 倍压缩），次优性 $<0.88\%$（推断，$\theta{=}0.7$ 档实测 0.88\%，§6.3） \\
+LNS & 大规模可解性章节/附录 + 敏感性 & 证明不可硬解时的分解通道；B2$\to$LNS 增量 0.68\%（EDF$\to$LNS 全程约 2.3\%） \\
+改进方向（可选） & 电价感知预填 / $\theta{=}0.5$--0.7 混合 & B2 全任务可证 $\sim 1.6\%$；clean-test 0.5 档 2.10\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{EDF 定位与替代通道的决策逻辑（总结）}：基荷预填采用的 EDF 最早开工策略具有电价感知隐患——
+任务在窗口内选「最早可行」而非「最低价可行」，其次优性由 Clean-test 配对实验量化：$\theta{=}0.7$ 档
+（预填 81.5\% GH）交 MILP 选时收益 0.88\%（$>0.5\%$ 可忽略线），主解 95.3\% 预填的次优性由单调性
+推断 \textbf{$<0.88\%$}。但\textbf{完全放弃 EDF 在计算上不可行}：$\theta{=}0$ 的全任务 MILP 约
+36.6M 候选变量，HiGHS 无法求解。EDF 预填的真正价值在于把变量空间压缩 $\sim 1e5$ 倍
+（36.6M $\to$ 223），使层 2 MILP 可在秒级求解——它是\textbf{以量化次优性换取可解性}的加速解法，
+而非最优解选择。三条\textbf{已验证的替代通道}提供可选的解质量提升路径：电价感知预填（B2 贪心式，
+全任务可证 $\sim 1.6\%$）、$\theta{=}0.5$--0.7 混合（部分任务交 MILP，clean-test 实测 2.10\%）与
+LNS 大规模选时（B2$\to$LNS 增量 0.68\%、EDF$\to$LNS 全程约 2.3\%，截断窗口保守下界）。上述替代
+方案作为敏感性分析与展望写入论文，不替换主解。
+
+% ===== 正式图占位 9-12：机理图组 =====
+\begin{figure}[H]
+\centering
+% 数据源 s4-results.pkl（sols 净购电 + SOC）→ sub4-mechanism-net.pdf；论文位置：§7 结果段
+\rule{0.9\textwidth}{4cm}
+\caption{算-储-电机理：A（东部高载）/D（算力中心）净购电 + SOC 时序。正式图待队友出图替换。}
+\label{fig:mech}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+% 数据源 s4-results.pkl（sols D 区 E/SOC）→ sub4-soc-storage.pdf；论文位置：§7 结果段
+\rule{0.9\textwidth}{4cm}
+\caption{D 区储能 SOC 与充放功率（储能时间搬运机理）。正式图待队友出图替换。}
+\label{fig:soc}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+% 数据源 s4-results.pkl（sols util）→ sub4-utilization.pdf；论文位置：§7 结果段
+\rule{0.9\textwidth}{4cm}
+\caption{六区域新能源利用率双口径（与 S3 基准线一致）。正式图待队友出图替换。}
+\label{fig:util}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+% 数据源 s4-results.pkl（sols net）→ sub4-peak-net.pdf；论文位置：§7 结果段
+\rule{0.9\textwidth}{4cm}
+\caption{六区域峰值净购电（碳帽下购电集中于低碳高峰时段）。正式图待队友出图替换。}
+\label{fig:peak}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+% 数据源 sub4-preprocessed.pkl（baseload_meta）→ sub4-baseload-contribution-v2.pdf；论文位置：§3 模型
+\rule{0.9\textwidth}{4cm}
+\caption{基荷策略贡献：任务覆盖与 0-1 变量压缩（36.6M $\to$ 223；纵轴对数刻度，非基荷 50 任务柱可见）。正式图待队友出图替换。}
+\label{fig:bl}
+\end{figure}
+
+\section{未闭合问题清单}
+\label{sec:open}
+
+\begingroup\sloppy
+\begin{enumerate}
+  \item \textbf{C2 消纳上限绑定率未量化}（受限消纳 Used+Rch 是否过紧？若绑定率极高，消纳假设主导
+        全部结果）——S3 遗留，S4 复用同口径，待阶段 3 统一核验。
+  \item \textbf{EDF 次优性已量化但未闭环}：$\theta{=}0.7$ 档交 MILP 选时收益 0.88\%（主解 95.3\%
+        预填的次优性由单调性推断 $<0.88\%$）；LNS 的 B2$\to$LNS 增量 0.68\% 仅为截断窗口保守下界
+        （EDF$\to$LNS 全程约 2.3\%）——「改晚到低价时段」方向的完整收益需扩大邻域（$W>168$h）或
+        全任务 MILP 验证，超出当前算力。
+  \item \textbf{储能价值被基荷预填压缩的程度未分离}：主解 95.3\% 任务固定后，储能仅在 4.7\% 自由
+        变量 + 固定负荷上做微调度，储能时间搬运 137.7M 的归因含调度结构混杂——需「基荷预填但无
+        储能」对照（类似 S3 B1）精确分离。
+  \item \textbf{利用率被锚定 20.83\%}：受限消纳口径下新能源利用率不可作为优化目标，论文需说明
+        「利用率=评价指标而非目标」的边界。
+  \item \textbf{场景 eps-0.95 仅 D 可行}：报告需明确「碳约束压降仅 D 区可行」是区域碳排刚性
+        （A/B/C $\varepsilon_{\min}\approx0.99$，E/F $\approx0.96$）而非模型缺陷，避免误读为全局
+        不可行。
+  \item \textbf{B2 基线 QoS 口径已澄清}（建模复核 2026-08-14）：\texttt{s4-baseline-heuristic.pkl}
+        \texttt{b2} 中 \texttt{qos\_pct}=100.0 与 \texttt{n\_late}=5{,}039 不矛盾——\texttt{n\_late}
+        是「GPU 容量冲突时回退到最早小时（lo=arrive）」的\textbf{回退计数}，非迟到任务数；回退后仍满足
+        \texttt{h0+dur$\le$latest} 截止，故 QoS 100\% 自洽。论文按此口径表述，不再视为未决。
+\end{enumerate}
+\endgroup
+
+\section{实际落地检查}
+\label{sec:deploy}
+
+\textbf{输入鲁棒性}：
+\begin{itemize}
+  \item \textbf{新能源统计下界（P25=588MW）}：基荷矩形依赖 P25 分位——若真实波动更大（P25 失准），
+        基荷预填可能高估确定性绿电。敏感性已覆盖 renew$\pm20\%$（成本 $\pm\sim10\%$，量级可控）；
+        P10/P50 基荷敏感性未跑（approach §9.4 保留），论文注明边界。
+  \item \textbf{电价/碳强度}：赛题给定，price$\times1.0\to2.0$ 成本线性 2166$\to$3241M，对结论方向
+        不敏感（调度结构不变），鲁棒性中等。
+  \item \textbf{受限消纳上限（Used+Rch）}：来自基准观测，若真实消纳能力不同，利用率锚定与碳排量级
+        变化——论文敏感性章节说明。
+\end{itemize}
+
+\textbf{输出成本/风险}：
+\begin{itemize}
+  \item \textbf{储能调度执行}：主解六区储能放电 296.49 GWh（D 区 75.35 GWh 最大），循环损耗
+        $\eta_c\eta_d\approx0.86$——「储能时间搬运 137.71M 为理论收益，未含设备折旧与循环寿命成本」。
+  \item \textbf{迁移执行成本}：模型假设迁移免费（approach A2，赛题说明 7），实际跨区迁移需带宽与
+        数据搬迁成本——论文注明边界。
+  \item \textbf{碳排 $+1.7\%$ 的代价}：主解成本最优但碳排高于 B1 基线，若实际碳配额收紧需 $\varepsilon$
+        三档策略（论文已含 $\varepsilon$ 敏感性）。
+\end{itemize}
+
+\section{结论}
+\label{sec:concl}
+
+半耦合两级分解框架下，S4 主解（基荷预填 95.3\% + 层 2 每区 MILP 含储能，$\varepsilon{=}1.00$）给出：
+\textbf{运行成本 2166.64M 元、碳排放 1960.78kt、峰值净购电 550MW、利用率 20.83\%、时延 28.07ms、
+QoS 100\%}（\texttt{s4-results.pkl} \texttt{main}）。单场景完整求解约 \textbf{19 s}（层 1 分配 +
+基荷预填 18.1 s + 层 2 MILP 1.09 s；层 2 变量 36.6M $\to$ 223，$\sim 1e5$ 倍压缩）。
+
+核心结论：
+\begin{enumerate}
+  \item \textbf{调度解较官方 Baseline 负荷解显著更优}：成本 $-2.1\%$（该差距包含任务迁移、负荷结构
+        差异与调度优化的全部收益，\textbf{非耦合增益}——「S2 调度 $\to$ S3 储能」的顺序解对照未
+        建立，见 §5.4）；碳排 $-4.1\%$ 主要来自任务迁移与负荷结构差异，基荷预填的碳减排价值被内部
+        对照否定（B1 1927.03kt $<$ 主解 1960.78kt），其价值定位为可解性与加速（§6.4）。
+  \item \textbf{基荷预填 = 加速解法}：以 $<0.88\%$--2.92\% 的 EDF 次优性代价（Clean-test 量化并如实
+        披露，主解档由单调性推断 $<0.88\%$）换取大规模可解性；LNS 提供不可硬解时的分解通道
+        （B2$\to$LNS 增量 0.68\%，EDF$\to$LNS 全程约 2.3\%）。
+  \item \textbf{区域碳排刚性}：碳约束压降仅 D 区可行（$\varepsilon_{\min}{=}0.9053$），与 S3
+        「碳排刚性」定性结论一致（$\varepsilon_{\min}$ 数值不可直接比较，见 §5.3）；D 区
+        $\varepsilon$-Pareto 前沿展示碳排-成本权衡。
+  \item \textbf{场景稳健性}：电价/新能源波动敏感性线性且方向正确；改进实验证伪「负载均衡」方向
+        （D 区更贵前提下导流增本增碳）作为反面案例入文。
+\end{enumerate}
+
+% ============================================================
+% 论文写作素材节（供队友写作，不进入终稿正文）
+% 按 latex/templates/components/writing-material.tex 模板结构完整填写
+% ============================================================
+\section{论文写作素材（供队友写作）}
+\label{sec:material}
+
+\subsection{章节映射}
+
+本报告对应终稿第 \textbf{第 N 章}「\textbf{多区域算—储—电协同优化（问题四）}」。建议终稿结构：
+\begin{itemize}
+  \item §N.1 建模与求解 \quad $\leftarrow$ 本报告 §2 模型 + §3 求解算法（含基荷预填创新点）
+  \item §N.2 结果分析 \quad $\leftarrow$ 本报告 §4 结果 + §5 灵敏度/口径
+  \item §N.3 讨论与检验 \quad $\leftarrow$ 本报告 §6（基荷策略检验 + LNS 通道）作为检验/优势小节素材
+\end{itemize}
+与终稿其他章节的衔接：S1（单区域调度框架）§Models、S2（跨区迁移）§Models、S3（储能框架）§Models
+——本问为其统一联合求解；S3 的受限消纳与储能口径在本问复用（口径声明见 §5.4）。
+
+\subsection{故事线（按段给出主题句与写作要点）}
+
+\begin{enumerate}
+  \item 【章首段】本问任务转述 + 输入规模 + 关键约束。要点：问题四要求统一考虑任务迁移、电价、
+        碳排放、可用新能源、储能、区域购售电边界、网络时延与任务异构性，在六项指标间权衡并做
+        多场景对比；输入规模 50{,}000 任务、6 区域、时域 0--2406h；与前三问关系（S2 迁移 + S3
+        储能在统一确定性优化中联合）。表述库参考：5.1-48（业务情境陈述式）+ 5.1-49（编号列表式
+        问题重述）。内嵌摘录：\emph{「某企业进行电子产品的装配生产，从零配件供应商处购买所需
+        零配件，但零配件会有一定的次品，次品率会影响该企业成品的合格率；……因此企业需考虑生产
+        过程中的各步检测及拆解策略，以期达到利润最大化。」（表述库 5.1-48 业务情境陈述式，
+        出处：2024B159-1.1 问题背景）}——句式示范：主体业务 + 特性影响 + 需考虑策略 + 以期达到目标。
+  \item 【建模段】为什么用该架构 + 模型结构（决策变量/目标/约束）。要点：半耦合两级分解的
+        必要性论证（全耦合约 4000 万变量不可行）；基荷预填加速创新点（P25 统计下界 $\to$ 确定性
+        绿色容量信号 $\to$ EDF 预填 $\to$ 0-1 变量压缩 $\sim 1e5$ 倍）；决策变量三类、目标 min 购电$-$卖电、
+        约束 C1--C8（引用本文 §2 公式 eq:assign/eq:quota/eq:obj）。表述库参考：2.2-19（决策变量
+        定义）+ 2.2-20（目标函数）+ 2.2-21（约束条件）+ 2.2-22（模型汇总句）+ 2.3-23（复杂度论证）
+        + 2.3-24（候选算法对比排除）。内嵌摘录：\emph{「该模型的状态空间较大，在不加必要限制的
+        情况下，每次搜索的空间为8个，随着状态的演进，搜索量呈现指数级上升，计算开销过大；因此在
+        求解模型的时候，考虑使用分阶段优化求解，但是所求为近似解，且较为逼近最优值，但仍有一定
+        偏差。」（表述库 2.3-23 指数复杂度式，出处：2018B1-六、模型的评价与改进）}——句式示范：
+        复杂度论证 $\to$ 分阶段优化求解的必要性。
+  \item 【结果段】核心数字 + 对比结论。要点：主解成本 2166.64M、碳排 1960.78kt、峰值 550MW、
+        利用率 20.83\%、时延 28.07ms、QoS 100\%；vs B1-EDF 基线成本 $-3.9\%$、vs S3 Baseline
+        负荷解 $-2.1\%$（注意口径声明）；储能时间搬运 137.71M 为成本主贡献（F 区结构性刚需）。
+        表述库参考：3.2-33（新旧方案增益对比）+ 3.2-34（指标比较论证）。内嵌摘录：
+        \emph{「此时总成本为54488元，任务完成率为0.8455，与原定价方案相比，成本节省了5.58\%，
+        任务完成度提高了35.25\%。」（表述库 3.2-33 单向增益式，出处：2017B3-6.4 模型求解结果）}
+        ——句式示范：此时（目标值1）…，与原方案相比，（指标）节省/提高了（百分比）。
+  \item 【灵敏度段】场景与参数敏感性 + 稳健性结论。要点：碳约束 $\varepsilon$ 压降仅 D 区可行
+        （区域碳排刚性，$\varepsilon_{\min}=0.9053$）；峰谷价差成本线性（斜率 $\sim 1074$ M/倍，
+        碳排不变）；新能源 $\pm20\%$ 成本碳排近似线性且方向正确。表述库参考：3.3-38（参数区间
+        扫描）+ 3.3-39（鲁棒/最坏情况）。内嵌摘录：\emph{「当Tc<40时，人、车用时随着Tc的增加而
+        增大，说明此时的系统并未稳定，得到的结果是不可靠的。但是当Tc>40时，人车用时保持恒定，
+        故此时模拟运行的结果与Tc大小无关，系统结果稳定，证明了我们前面选取Tc=50(min)是合理的，
+        且得到的结果是正确和稳定的。」（表述库 3.3-38 阈值扫描稳定区间式，出处：2019C1-5.1 乘车
+        效率对模拟系统截止时间Tc的灵敏度分析）}——句式示范：改变参数观察指标 $\to$ 找稳定区间 $\to$
+        证明所选取值合理。
+\end{enumerate}
+
+\textbf{表述库内嵌规则说明}：以上三处内嵌摘录均按「表述库内嵌规则」从表述库 parts 文件原句
+摘录并注明出处（论文ID-章节），文件名 \texttt{expression-library-parts.md}；队友不依赖
+parts 文件即可写作。
+
+\subsection{关键数字表}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{>{\raggedright\arraybackslash}p{2.5cm} >{\raggedright\arraybackslash}p{3.5cm} >{\raggedright\arraybackslash}p{6.4cm} >{\raggedright\arraybackslash}p{1.9cm}}
+\toprule
+数字 & 含义 & 来源（pkl 路径 + 字段） & 论文引用位置 \\
+\midrule
+2166.64 M元 & S4 主解运行成本 & \texttt{s4-results.pkl} \texttt{main.cost\_main\_M}（2026-08-09） & §7 结果段 \\
+1960.78 kt & 主解碳排放 & \texttt{s4-results.pkl} \texttt{main.carbon\_kt} & §7 结果段 \\
+550.0 MW & 区域峰值净购电 & \texttt{s4-results.pkl} \texttt{main.peak\_MW} & §7 结果段 \\
+20.83 \% & 新能源利用率（受限消纳锚定） & \texttt{s4-results.pkl} \texttt{main.util\_no\_sell\_pct} & §7 结果段 \\
+28.07 ms & 网络时延（GPU-hour 加权全任务） & \texttt{s4-results.pkl} \texttt{main.delay\_ms} & §7 结果段 \\
+1.09 s & 层 2 MILP 求解合计 & \texttt{s4-results.pkl} \texttt{main.total\_time\_s} & §3 求解方法 \\
+2253.57 / 2216.74 M元 & B1-EDF / B2-电价基线成本 & \texttt{s4-baseline-heuristic.pkl} \texttt{b1/b2.cost\_main\_M} & §7 结果段（对比） \\
+137.71 M元 & 储能时间搬运贡献 & \texttt{s4-cost-decomposition.pkl} \texttt{decomposition.storage\_M} & §7 结果段（归因） \\
+$-86.93$ M元 & 总节省（vs B1，近似口径） & \texttt{s4-cost-decomposition.pkl} \texttt{decomposition.total\_M} & §7 结果段 \\
+2139.60 M元 & LNS $\theta{=}0.3$ 终值（含超容口径） & \texttt{s4-lns-results.pkl} \texttt{per\_region.cost\_final}（附件目录） & §8 灵敏度/附录 \\
+3241.28 M元 & 峰谷价差 $\times 2.0$ 成本 & \texttt{s4-sensitivity.pkl} \texttt{price[2.0].agg.cost\_main\_M} & §8 灵敏度 \\
+0.9053 & D 区 $\varepsilon_{\min}$ & \texttt{s4-d-eps-scan.pkl} \texttt{eps\_min} & §8 灵敏度 \\
+33{,}226 (66.5\%) / 95.3\% GH & 基荷预填任务 / GPU-hour 覆盖 & \texttt{sub4-preprocessed.pkl} \texttt{baseload\_meta}（n\_filled / gh\_filled） & §3 模型 \\
+296.49 GWh & 主时域储能放电总量 & \texttt{s4-results.pkl} \texttt{sols.*.D} 数组求和（复算） & §7 结果段 \\
+0.242 & 拐角解聚合比例 & \texttt{s4-results.pkl} + \texttt{sub4-preprocessed.pkl}（inspect-sub4-corner.py 逻辑复算） & §7 结果段/检验 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{注}：(1) 层 1 分配 + 基荷预填耗时 18.1 s 为 \texttt{preprocess-sub4.py} 运行时间实测（阶段 1.4），
+非 pkl 字段，引用时注明出处；(2) vs S3 的 2213.35M / 2044.79kt 为 S3 报告数字（非 S4 pkl），引用时
+标注「S3 报告值，阶段 3 跨问核验」；(3) Clean-test 三档 $\Delta$（19.13/45.52/63.24M）来源
+\texttt{s4-clean-results-ratio\{030,050,070\}.pkl}（附件数据目录）\texttt{delta.total\_M}。
+
+\subsection{图表清单}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{>{\raggedright\arraybackslash}p{5.0cm} >{\raggedright\arraybackslash}p{6.6cm} >{\raggedright\arraybackslash}p{3.2cm}}
+\toprule
+图/表 & 数据源（pkl + 生成） & 建议插入位置 \\
+\midrule
+sub4-region-cost-carbon.pdf & \texttt{s4-results.pkl}（sub4-model.py, 2026-08-09） & §7 结果段（tab:main 旁） \\
+sub4-scenario-compare.pdf & \texttt{s4-results.pkl} scenarios & §7 场景对比 \\
+sub4-tradeoff-heatmap.pdf & \texttt{s4-results.pkl} scenarios（全可行集） & §7 场景对比 \\
+sub4-sens-price.pdf & \texttt{s4-sensitivity.pkl} price & §8 灵敏度 \\
+sub4-sens-renew.pdf & \texttt{s4-sensitivity.pkl} renew & §8 灵敏度 \\
+sub4-pareto-carbon.pdf & \texttt{s4-sensitivity.pkl} eps & §8 灵敏度 \\
+sub4-d-marginal-cost.pdf & \texttt{s4-d-eps-scan.pkl} & §8 灵敏度 \\
+sub4-mechanism-net.pdf & \texttt{s4-results.pkl} sols（净购电+SOC） & §7 结果段（机理） \\
+sub4-soc-storage.pdf & \texttt{s4-results.pkl} sols D 区 & §7 结果段（储能机理） \\
+sub4-utilization.pdf & \texttt{s4-results.pkl} sols util & §7 结果段 \\
+sub4-peak-net.pdf & \texttt{s4-results.pkl} sols net & §7 结果段 \\
+sub4-baseload-contribution-v2.pdf & \texttt{sub4-preprocessed.pkl} baseload\_meta & §3 模型（基荷创新点） \\
+sub4-lns-convergence.pdf & \texttt{s4-lns-results.pkl} per\_region.curve（附件目录） & §8 灵敏度/附录 \\
+tab:main / tab:baseline / tab:decomp / tab:scenario / tab:clean / tab:lns / tab:corner & 见各表注 & 对应正文位置 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{pkl 版本锁定}：本报告图表占位符引用的 pkl 均为 2026-08-09 生成版；若后续重跑需用新文件名
+（\texttt{-v2} 递增），禁止覆盖已引用文件（TRAE.md 跨对话同步）。
+
+\subsection{口径与局限（可写句 / 禁写句）}
+
+\begin{itemize}
+  \item 可写：该子问题可以安全写进论文的结论句——
+    \begin{itemize}
+      \item 「主解运行成本 2166.64M 元，较 B1-EDF 纯启发式基线降低 3.9\%，较官方 Baseline 负荷
+            解降低 2.1\%（该差距包含任务迁移、负荷结构差异与调度优化的全部收益）」；
+      \item 「基荷预填把层 2 MILP 变量空间压缩约 1e5 倍（36.6M $\to$ 223），EDF 次优性经配对
+            实验量化 <0.88\%（推断）并如实披露」；
+      \item 「碳约束压降仅 D 区可行（$\varepsilon_{\min}=0.9053$），区域碳排刚性；D 区
+            $\varepsilon$-Pareto 前沿展示碳排-成本权衡」；
+      \item 「储能时间搬运 137.71M 为成本主贡献，F 区为结构性刚需（111h 的
+            G+D$>$MaxImport）；该收益未含设备折旧与循环寿命成本」；
+      \item 「电价/新能源波动敏感性近似线性且方向正确，模型结论对参数扰动稳健」。
+    \end{itemize}
+  \item 禁止写：该子问题不得写进论文的过度承诺句——
+    \begin{itemize}
+      \item 「该 $-2.1\%$ 收益为联合优化的耦合增益」（口径声明：S2 调度 $\to$ S3 储能的顺序解
+            对照未建立，不可表述为耦合增益）；
+      \item 「基荷预填带来碳减排」（内部对照否定：主解碳排 1960.78kt 高于无基荷预填的 B1
+            1927.03kt，其价值定位为可解性与加速）；
+      \item 「LNS 终值 2139.60M 优于主解」（含多重口径差异：禁改派/任务留 E/F/预填仅 30\%/
+            超容不计成本，不可直接解读为更优构造）；
+      \item 跨子问题直接比较 $\varepsilon$ 数值（S3 帽值为外部 Baseline、S4 为自身 free 解，
+            分母不同，语义不同）；
+      \item 「主解 EDF 预填次优性可忽略」（Clean-test 实测 $\theta{=}0.7$ 档 0.88\% $>$
+            0.5\% 可忽略线，主解档 <0.88\% 为推断）。
+    \end{itemize}
+\end{itemize}
+
+\subsection{AI 工具使用标注}
+
+本子问题涉及 AI 使用记录：\todo{[AI-4-1] 等编号待阶段 3.3 从 ai-markers 汇总引用}。已知记录点：
+阶段 1.1 A 类验证（建模/代码对话）、阶段 1.4 预处理、阶段 2.1 实现（含子代理两遍审核）、阶段 2.2
+结果分析、本文档生成（报告对话）。供 AI 使用声明与附录 AI 工具使用详情引用。
+
+\begin{thebibliography}{9}
+\bibitem{shaw1998} Shaw P. Using constraint programming and local search methods to solve vehicle
+routing problems[C]//International Conference on Principles and Practice of Constraint Programming
+(CP-98), 1998: 417--431.
+\bibitem{highs2018} Huangfu Q, Hall J A J. Parallelizing the dual revised simplex method[J].
+Mathematical Programming Computation, 2018, 10(1): 119--142.
+\end{thebibliography}
+
+\end{document}

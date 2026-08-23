@@ -1,0 +1,13 @@
+﻿字段名,中文名称,单位,属性,含义与使用说明
+Region,区域编号,无,输入索引,与region_time_data.xlsx、workload_trace.xlsx中的区域字段保持一致。
+RegionRole,区域角色,无,输入参数,描述区域功能定位，如东部高负荷区域、西部算力中心、光伏/风电富集区。
+Total_GPU,总GPU等效调度单元,等效GPU单元,输入参数,区域数据中心可用于AI任务调度的总GPU等效规模。
+Max_IT_Power_MW,IT侧最大功率,MW,输入约束,数据中心IT设备侧最大可承载功率，用于功率容量约束。
+PUE,能源使用效率,无量纲,输入参数,Total_Load_MW = IT_Load_MW × PUE。
+Max_Facility_Power_MW,设施侧最大功率,MW,输入约束,按Max_IT_Power_MW × PUE计算，是设施侧总负荷上限。
+Reserved_GPU_Ratio,预留GPU比例,无量纲,输入参数,用于预留冗余、容错和运维资源。
+Available_GPU,可调度GPU等效单元,等效GPU单元,输入约束,Available_GPU = Total_GPU × (1 - Reserved_GPU_Ratio)。
+Max_Workload_GPUh_per_h,每小时最大GPUh能力,GPUh/h,输入约束,用于简化建模时约束每小时可承接的GPU需求。
+CapacityLevel,容量等级,无,说明字段,用于定性描述区域算力规模。
+Remarks,备注,无,说明字段,解释区域建模特点。
+功率映射说明,任务功率映射,无,使用说明,实际 IT 功率由 power_mapping.xlsx 的任务类型功率系数和逐时 GPU 占用计算；Max_IT_Power_MW 仅为上限。

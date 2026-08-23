@@ -1,0 +1,34 @@
+\documentclass{mcm-paper}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\begin{document}
+
+% ============================================================
+% 纯正文版本 仅正文 1-10 章（用于 AIGC/查重检测）
+% 不含摘要页、AI 声明、参考文献、附录
+% ============================================================
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+\input{chapter1-problem.tex}
+\input{chapter2-data.tex}
+\input{chapter3-assumptions.tex}
+\input{chapter4-sub1.tex}
+\input{chapter5-sub2.tex}
+\input{chapter6-sub3.tex}
+\input{chapter7-sub4.tex}
+\input{chapter8-sensitivity.tex}
+\input{chapter9-evaluation.tex}
+\input{chapter10-conclusion.tex}
+
+\end{document}

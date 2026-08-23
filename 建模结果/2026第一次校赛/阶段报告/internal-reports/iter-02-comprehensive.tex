@@ -1,0 +1,205 @@
+% STATUS: draft
+% LAST_MODIFIED: 2026-07-28
+\documentclass[UTF8]{ctexart}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry,booktabs,graphicx}
+\geometry{a4paper, margin=2.5cm}
+\usepackage{hyperref}
+
+\title{2026 校赛 C 题综合内部报告}
+\author{阶段 2.3}
+\date{2026-07-28}
+
+\begin{document}
+\maketitle
+
+\section{问题重述}
+
+某竞赛采用双阶段评审。网评阶段每篇论文由 4 位评委百分制评分，标准分归一化后按总分排名，前 55\% 进入集中评审。集中评审由 3 位评委独立评分，标准分与网评平均标准分求均值得最终成绩。附属数据包含 A--E 五个题目的评审结果。
+
+\section{子问题 1：网评与终评相关性分析}
+
+\subsection{方法}
+
+对每篇论文，将 4 位评委的原始分按评委分别计算 $z_{j,i} = (x_{j,i} - \bar{x}_j) / \sigma_j$ 后取均值作为网评标准分。以最终奖项（一等=3、二等=2、三等=1、淘汰=0）为标签，计算 Spearman 秩相关系数。对入围论文（$n=2074$）追加 Pearson 线性相关（经正态性检验）。
+
+大样本（$n=4876$）下 $p$ 值必然显著，按 PF-005 规范以效应量 $|\rho|$ 为主要解读依据：$<0.1$ 可忽略、$0.1$--$0.3$ 弱、$0.3$--$0.5$ 中、$>0.5$ 强。
+
+\subsection{结果}
+
+\begin{table}[h]
+\centering
+\caption{网评标准分与最终奖项的相关性}
+\begin{tabular}{cccc}
+\toprule
+题目 & Spearman $\rho$ & Pearson $r$（入围） & ROC AUC（一等）\\
+\midrule
+A & 0.768 & 0.515 & 0.942 \\
+B & 0.792 & nan$^*$ & 0.932 \\
+C & 0.762 & 0.319 & 0.872 \\
+D & 0.811 & 0.641 & 0.975 \\
+E & 0.808 & 0.543 & 0.933 \\
+\textbf{全题} & \textbf{0.797} & \textbf{0.540} & \textbf{0.932} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+网评筛选命中率 74.8\%（前 55\% 论文中获奖比例），假阴性率仅 3.3\%。ROC AUC 均 $>0.87$，对一等奖有卓越区分力。B 题入围论文网评标准分偏度/峰度不满足正态性假设，Pearson $r$ 不报告。
+
+\subsection{结论}
+
+网评结果与最终成绩存在强秩相关（$\rho=0.797$），能有效完成初筛任务。
+
+\section{子问题 2：评委基本素质指标体系}
+
+\subsection{四维度框架}
+
+从利益相关者视角构建四维度指标体系：
+
+\textbf{维度一：信度（Reliability）}——评分能否被其他评委复现。以成对 ICC(2,1) 均值量化：
+\begin{equation}
+R_j^{\text{rel}} = \frac{1}{K-1} \sum_{k \neq j} \text{ICC}_{jk}
+\end{equation}
+
+\textbf{维度二：效度（Validity）}——评分能否识别论文真实质量。以评分与最终奖项的 Spearman $\rho$ 量化，严格遵循 PF-005 效应量报告规范。
+
+\textbf{维度三：公平性（Fairness）}——是否存在系统性偏高/偏低。以评分均值偏离全体均值的标准化 $z$ 值的绝对值量化。
+
+\textbf{维度四：区分力（Discrimination）}——能否有效拉开论文差距。以评分标准差 $\sigma_j$ 和变异系数 CV 量化。
+
+\subsection{统计独立性}
+
+维间最大 Spearman $r = 0.32$（效度 $\times$ 区分力），无严重冗余。公平性与所有维度 $r < 0.12$，完全独立。
+
+\section{子问题 3：评委素质数学模型}
+
+\subsection{熵权法 + TOPSIS}
+
+对四维度归一化后，熵权法确定权重：
+
+\begin{equation}
+e_j = -\frac{1}{\ln K}\sum P_{ij}\ln P_{ij}, \quad w_j = \frac{1-e_j}{\sum(1-e_j)}
+\end{equation}
+
+TOPSIS 综合评价：
+\begin{equation}
+S_i = \frac{D_i^-}{D_i^+ + D_i^-} \in [0,1]
+\end{equation}
+
+以等权 TOPSIS 作稳健性检验：熵权 vs 等权 Spearman $r = 0.864$--$0.969$，方法稳健。
+
+\subsection{权重分布}
+
+\begin{table}[h]
+\centering
+\caption{五题熵权分布}
+\begin{tabular}{ccccc}
+\toprule
+题目 & 信度 & 效度 & 公平性 & 区分力 \\
+\midrule
+A & 0.153 & 0.224 & 0.240 & 0.382 \\
+B & 0.203 & 0.203 & 0.152 & 0.442 \\
+C & 0.199 & 0.216 & 0.222 & 0.363 \\
+D & 0.203 & 0.183 & 0.177 & 0.437 \\
+E & 0.153 & 0.383 & 0.159 & 0.304 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+区分力权重始终最高（均值 0.386），因评委间标准差变异最大。效度在 E 题权重偏高（0.383，因 E 题评委效度差异大），四维度权重分布按题目差异化。
+
+\subsection{K-means++ 分层}
+
+\begin{table}[h]
+\centering
+\caption{各题评委分层结果（K$\geq$3 业务约束）}
+\begin{tabular}{ccccc}
+\toprule
+题目 & K & Silhouette & 分层结构 \\
+\midrule
+A & 3 & 0.391 & 优秀2/良好6/合格6 \\
+B & 4 & 0.244 & 优秀16/良好22/合格11/需关注6 \\
+C & 3 & 0.375 & 优秀3/良好14/合格3 \\
+D & 4 & 0.250 & 优秀24/良好21/合格17/需关注7 \\
+E & 3 & 0.277 & 优秀14/良好20/合格4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{异常评委验证}
+
+阶段 0.4 异常画像标记的 27 位评委在 TOPSIS 排名中得到验证：C11/C12/C13（宽松+低离散）在 C 题并列倒数，E28（高分+极低离散）E 题垫底，证明了异常检测与 TOPSIS 的交叉有效性。
+
+\section{子问题 4：不同题目评委表现差异分析}
+
+\subsection{Kruskal-Wallis 检验}
+
+\begin{equation}
+H = 8.450,\ p = 0.076,\ \eta^2 = 0.023
+\end{equation}
+
+整体差异不显著（$p > 0.05$）。Dunn 事后检验（Bonferroni 校正）无任何配对组合显著。说明五题评委的综合素质分布在统计上不可区分。
+
+\subsection{分维度检验}
+
+信度（$H=53.1,\ p<0.001$）、效度（$H=41.0,\ p<0.001$）和区分力（$H=20.3,\ p<0.001$）五题间差异极显著；但公平性维度五题无显著差异（$H=2.8,\ p=0.59$）——评委在偏差控制上具有跨题目一致性。
+
+\subsection{结论与局限}
+
+五题评委 TOPSIS 综合得分无显著差异（$p=0.076$），但各子维度（信度/效度/区分力）有显著差异。评委完全不跨题的设计导致题目效应与评委池效应无法分离。本文将此分析定性为探索性发现，不做因果推断。
+
+\section{子问题 5：网评成绩利用策略}
+
+\subsection{权重敏感性}
+
+模拟不同网评权重 $\alpha$ 下，组合排名与奖项的 Spearman $\rho$：
+
+\begin{center}
+\begin{tabular}{cccccccc}
+\toprule
+$\alpha$ & 0.00 & 0.10 & 0.20 & 0.25 & 0.30 & 0.40 & 0.50 \\
+\midrule
+$\rho$ & 0.660 & 0.668 & 0.664 & 0.658 & 0.652 & 0.636 & 0.613 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+当前 $\alpha=0.25$ 的权重处于合理区间。$\alpha=0.10$ 时 $\rho$ 略高，但差异微小（$\Delta = 0.010$）。由于集中评审评分不可见，敏感性模拟采用秩混合近似（以奖项排名作为集中评审的代理），需注意此简化。
+
+\subsection{评委素质加权}
+
+以评委 TOPSIS 得分为可信度权重，替代等权均值：
+\begin{equation}
+\bar{z}_{\text{web}}^{\text{weighted}} = \sum_{j=1}^{4} \frac{S_j}{\sum S_k} \cdot z_j
+\end{equation}
+
+素质加权在所有五题中均正向提升 $\rho$（A:+0.006, B:+0.007, C:+0.017, D:+0.012, E:+0.028）。E 题提升最大（+0.028），加权效果与题目评委素质方差正相关。
+
+\subsection{改进建议}
+
+\begin{enumerate}
+    \item 保留当前 1/4 网评权重，不增不减
+    \item 对 13 位"需关注/待改进"评委的网评评分做降权处理（总评委数 196 的 6.6\%）
+    \item 引入评委素质动态更新机制：每轮赛后根据 Q3 模型更新评委权重
+\end{enumerate}
+
+\section{综合结论}
+
+\begin{enumerate}
+    \item 网评制度总体有效：Spearman $\rho=0.797$，命中率 74.8\%，假阴性率 3.3\%
+    \item 评委素质可用四维度（信度/效度/公平性/区分力）全面度量，维度间统计独立
+    \item 熵权+TOPSIS 可客观排序评委，且与等权一致性 $>0.86$，方法稳健
+    \item 五题评委综合素质无显著差异（$\eta^2=0.023,\ p=0.076$），但公平性维度跨题一致
+    \item 当前网评权重合理，引入素质加权可小幅提升评审精度（E 题收益最大）
+\end{enumerate}
+
+\section{未闭合问题}
+
+\begin{enumerate}
+    \item 集中评审评委评分不可见——网评对终评评分的直接影响无法量化，敏感性分析需做秩混合近似
+    \item 前 55\% 规则与实际 42\% 入围比例不符——机制差异来源不明
+    \item 评委素质评价仅基于网评数据，不能替代集中评审阶段评委的评价
+\end{enumerate}
+
+\end{document}

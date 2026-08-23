@@ -1,0 +1,61 @@
+% STATUS: draft
+% LAST_MODIFIED: 2026-07-28
+\documentclass[UTF8]{ctexart}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+
+\title{子问题5 数学推导：网评成绩利用策略}
+\author{阶段 2.0}
+\date{2026-07-28}
+
+\begin{document}
+\maketitle
+
+\section{当前评分机制}
+
+网评阶段每篇论文由 4 位评委评分，标准分归一化后取均值 $\bar{z}_{\text{web}}$。
+集中评审阶段 3 位评委评分（不可见），最终成绩：
+
+\begin{equation}
+S_{\text{final}} = \frac{\bar{z}_{\text{web}} + z_1^{\text{central}} + z_2^{\text{central}} + z_3^{\text{central}}}{4}
+\end{equation}
+
+网评权重 $w = 1/4$。
+
+\section{权重敏感性分析}
+
+引入可变权重 $\alpha \in [0, 0.5]$：
+
+\begin{equation}
+S_{\text{final}}(\alpha) = \alpha \cdot \bar{z}_{\text{web}} + (1-\alpha) \cdot \bar{z}_{\text{central}}
+\end{equation}
+
+以 Q1 中 Spearman $\rho(\alpha)$ 为优化目标——$\rho$ 越大，最终排序与真实水平越吻合。
+
+\section{基于评委素质的动态权重}
+
+基于 Q3 的 TOPSIS 得分，为每位网评评委赋予可信度权重：
+
+\begin{equation}
+w_j = \frac{S_j}{\sum_{k=1}^{4} S_k}, \quad \bar{z}_{\text{web}}^{\text{weighted}} = \sum_{j=1}^{4} w_j \cdot z_j
+\end{equation}
+
+其中 $S_j$ 为评委 $j$ 的 TOPSIS 综合素质得分。
+
+对比原方案（等权均值）与加权方案的 Spearman $\rho$ 变化。
+
+\section{数学自检}
+
+\begin{itemize}
+\item $\alpha \in [0,1]$ 归一化 $\checkmark$
+\item $w_j \geq 0, \sum w_j = 1$ $\checkmark$
+\item 无循环依赖：$S_j$ 来自 Q3，$w_j$ 来自 $S_j$，$\bar{z}_{\text{web}}$ 来自 $w_j$，单向 $\checkmark$
+\end{itemize}
+
+\section{直觉解释}
+
+当前制度下，网评=1/4的权重。问题是：如果网评评委素质参差不齐（Q3 已证实），等权均值可能让"差评委"的噪声污染总成绩。改进方案是——让素质高的评委说话分量重一点，素质低的评委说话分量轻一点。就像专家组投票，专家水平不同，票权也该不同。
+
+\end{document}

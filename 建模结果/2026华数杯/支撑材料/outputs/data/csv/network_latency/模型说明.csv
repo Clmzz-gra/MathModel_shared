@@ -1,0 +1,4 @@
+﻿项目,口径
+网络建模边界,NetworkLatency_ms 为来源区域到执行区域的单向等效时延。
+迁移开销,本赛题不考虑迁移数据量、网络带宽、传输能耗和传输费用；仅按时延筛选。
+SLA使用规则,实时推理任务到达即开工，且要求 NetworkLatency_ms ≤ MaxLatency_ms；批量/训练任务受 LatestFinishHour 约束。

@@ -1,0 +1,68 @@
+% STATUS: draft
+% LAST_MODIFIED: 2026-07-28
+\documentclass[UTF8]{ctexart}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+
+\title{子问题4 数学推导：不同题目评委表现差异分析}
+\author{阶段 2.0}
+\date{2026-07-28}
+
+\begin{document}
+\maketitle
+
+\section{问题设定}
+
+五题评委素质分（Q3 输出）为 $\{S_i^{(A)}\}, \{S_i^{(B)}\}, \ldots, \{S_i^{(E)}\}$，样本量分别为 $n_A, n_B, \ldots, n_E$。
+
+由于评委完全不跨题，不能假设同一评委在不同题目的表现差异，只能比较五组评委池的整体素质分布。
+
+\section{Kruskal-Wallis H 检验}
+
+对于 $k=5$ 组独立样本，原假设 $H_0$：五组来自同一分布。备择假设 $H_1$：至少一组的中位数显著不同。
+
+将 $N = \sum_{g=1}^{5} n_g$ 个观察值混合排秩：
+
+\begin{equation}
+H = \frac{12}{N(N+1)}\sum_{g=1}^{5}\frac{R_g^2}{n_g} - 3(N+1)
+\end{equation}
+
+其中 $R_g$ 为第 $g$ 组的秩和。$H$ 近似服从 $\chi^2(4)$ 分布。
+
+\textbf{选择理由}：部分题组样本量小（A=14），不满足 ANOVA 正态性假设。KW 是非参数检验，无分布假设。
+
+\section{Dunn 事后检验}
+
+若 KW 显著（$p < 0.05$），进行 $\binom{5}{2}=10$ 对逐对比比较：
+
+\begin{equation}
+z_{gh} = \frac{\bar{R}_g - \bar{R}_h}{\sqrt{\frac{N(N+1)}{12}\left(\frac{1}{n_g} + \frac{1}{n_h}\right)}}
+\end{equation}
+
+Bonferroni 校正：$p_{\text{adj}} = \min(p_{\text{raw}} \times 10, 1)$。
+
+\section{效应量}
+
+Kruskal-Wallis 的效应量 $\eta^2$（类比 ANOVA 的 $R^2$）：
+
+\begin{equation}
+\eta^2 = \frac{H - k + 1}{N - k}
+\end{equation}
+
+解释：$<0.06$ 小效应，$0.06$–$0.14$ 中等，$>0.14$ 大效应。
+
+\section{数学自检}
+
+\begin{itemize}
+\item KW 只要求各组独立 + 观察值至少为次序尺度 $\checkmark$（TOPSIS 得分满足）
+\item Bonferroni 校正保守但安全 $\checkmark$
+\item $\eta^2$ 的分母 $N-k$ 为正（$N=196, k=5$）$\checkmark$
+\end{itemize}
+
+\section{直觉解释}
+
+把五题评委的 TOPSIS 得分放在一起比——如果 A 题评委普遍素质分高、B 题普遍低，那 KW 检验就会显著。但即使显著，也不能说"A 题评委更优秀"，因为可能是 A 题论文质量更高、评委更容易"表现好"。这是本题的根本局限。
+
+\end{document}

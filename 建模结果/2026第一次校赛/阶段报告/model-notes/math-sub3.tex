@@ -1,0 +1,154 @@
+% STATUS: draft
+% LAST_MODIFIED: 2026-07-28
+\documentclass[UTF8]{ctexart}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+
+\title{子问题3 数学推导：评委素质综合评价模型}
+\author{阶段 2.0}
+\date{2026-07-28}
+
+\begin{document}
+\maketitle
+
+\section{模型框架}
+
+子问题2输出归一化后的四维度指标矩阵 $\mathbf{Z} = [z_{ij}]_{K \times 4}$，
+其中 $z_{ij}$ 为评委 $i$ 在维度 $j$ 上的归一化得分（$i=1,\ldots,K$，$j=1,\ldots,4$，$z_{ij} \in [0,1]$）。
+
+目标：将 $\mathbf{Z}$ 映射为一维综合素质得分 $S_i \in [0,1]$，并对评委进行分层。
+
+\section{步骤一：熵权法确定权重}
+
+\subsection{概率化}
+
+为避免 $\ln 0$，做微小平移 $z_{ij} \leftarrow z_{ij} + 10^{-6}$，然后计算概率矩阵：
+
+\begin{equation}
+p_{ij} = \frac{z_{ij}}{\sum_{i=1}^{K} z_{ij}}, \quad j = 1, \ldots, 4
+\end{equation}
+
+\subsection{信息熵}
+
+第 $j$ 维度的信息熵反映该维度数据的混乱程度：
+
+\begin{equation}
+e_j = -\frac{1}{\ln K} \sum_{i=1}^{K} p_{ij} \ln p_{ij}
+\end{equation}
+
+$e_j \in [0, 1]$。$e_j \to 1$ 表示该维度所有评委得分几乎相同（无区分度），$e_j \to 0$ 表示差异极大。
+
+\subsection{熵权}
+
+信息效用值（区分度）：
+\begin{equation}
+d_j = 1 - e_j
+\end{equation}
+
+熵权（归一化的区分度）：
+\begin{equation}
+w_j = \frac{d_j}{\sum_{k=1}^{4} d_k}, \quad \sum_{j=1}^{4} w_j = 1
+\end{equation}
+
+\textbf{重要提示（MS-024）}：$w_j$ 反映的是维度的"区分度"，不是"重要性"。某个维度权重低可能因为所有评委在该维度得分接近（本身就是好事），而非该维度不重要。
+
+\section{步骤二：TOPSIS 综合排序}
+
+\subsection{加权标准化矩阵}
+
+\begin{equation}
+v_{ij} = w_j \cdot z_{ij}
+\end{equation}
+
+\subsection{确定理想解与负理想解}
+
+正理想解（各维度最优值）：
+\begin{equation}
+A^+ = (\max_i v_{i1}, \max_i v_{i2}, \max_i v_{i3}, \max_i v_{i4})
+\end{equation}
+
+负理想解（各维度最劣值）：
+\begin{equation}
+A^- = (\min_i v_{i1}, \min_i v_{i2}, \min_i v_{i3}, \min_i v_{i4})
+\end{equation}
+
+\subsection{计算欧氏距离}
+
+到正理想解的距离：
+\begin{equation}
+D_i^+ = \sqrt{\sum_{j=1}^{4} (v_{ij} - A_j^+)^2}
+\end{equation}
+
+到负理想解的距离：
+\begin{equation}
+D_i^- = \sqrt{\sum_{j=1}^{4} (v_{ij} - A_j^-)^2}
+\end{equation}
+
+\subsection{贴近度（综合素质得分）}
+
+\begin{equation}
+S_i = \frac{D_i^-}{D_i^+ + D_i^-} \in [0, 1]
+\end{equation}
+
+$S_i \to 1$：评委 $i$ 越接近理想最优，综合素质越高。
+$S_i \to 0$：越接近最劣。
+
+\section{步骤三：K-means++ 分层}
+
+以 TOPSIS 得分 $S_i$ 和四维度原始归一化值为特征，对 $K$ 位评委做 K-means++ 聚类：
+
+\begin{equation}
+\text{cluster}_i = \arg\min_{c \in \{1,\ldots,C\}} \| \mathbf{v}_i - \boldsymbol{\mu}_c \|^2
+\end{equation}
+
+其中 $\mathbf{v}_i = (S_i, z_{i1}, \ldots, z_{i4})$ 为加权特征向量，$\boldsymbol{\mu}_c$ 为第 $c$ 簇中心。
+
+\textbf{聚类数 $C$ 的确定}（MS-005）：
+\begin{itemize}
+    \item 肘部法则：扫描 $C=2,3,4,5,6$，绘制 SSE-C 曲线
+    \item Silhouette 系数：选取使轮廓系数最大的 $C$
+    \item 业务约束：$C \geq 3$（保证"优秀/合格/需关注"三档）
+\end{itemize}
+
+\section{稳健性检验}
+
+\subsection{等权对照}
+
+同时计算等权 TOPSIS（$w_j = 0.25, \forall j$）得分 $S_i^{\text{eq}}$，比较 Spearman 秩相关：
+
+\begin{equation}
+\rho_{\text{robust}} = \text{Spearman}(S_i, S_i^{\text{eq}})
+\end{equation}
+
+$\rho_{\text{robust}} > 0.8$ 则权重选择对排名影响有限，结论稳健。
+
+\subsection{异常评委标记}
+
+基于异常画像（Isolation Forest 检测），标记异常评委的子集 $\mathcal{A}$。
+计算有/无 $\mathcal{A}$ 的权重和排名差异：
+
+\begin{equation}
+\Delta w_j = w_j^{\text{full}} - w_j^{\text{clean}}, \quad \Delta\text{rank}_i = |\text{rank}_i^{\text{full}} - \text{rank}_i^{\text{clean}}|
+\end{equation}
+
+\section{数学自检}
+
+\begin{itemize}
+    \item 熵权 $w_j \in [0,1]$，$\sum w_j = 1$ $\checkmark$
+    \item $S_i \in [0,1]$，有界可解释 $\checkmark$
+    \item 量纲一致性：所有 $z_{ij}$ 已归一化至 $[0,1]$，加权后 $v_{ij}$ 同量纲 $\checkmark$
+    \item 无循环依赖：$z_{ij} \to w_j \to v_{ij} \to S_i$，单向 $\checkmark$
+    \item 熵权的数学前提：$p_{ij} > 0$（已做 $+10^{-6}$ 平移）$\checkmark$
+\end{itemize}
+
+\section{直觉解释}
+
+\begin{itemize}
+    \item \textbf{熵权法}：哪个维度上评委之间差距大，哪个维度的权重就高。就像打分——如果所有人信度都是 0.8，那这维度区分不出高低，自然该给低权重。
+    \item \textbf{TOPSIS}：想象每个维度都有一个"理想评委"——信度最高、效度最好、公平性最优、区分力最强。你的综合素质得分 = 你离这个理想评委有多近。
+    \item \textbf{K-means 分层}：把 196 个评委按"综合素质 + 四维度表现"自动分成几群人，每群人在哪方面强、哪方面弱一目了然。
+\end{itemize}
+
+\end{document}

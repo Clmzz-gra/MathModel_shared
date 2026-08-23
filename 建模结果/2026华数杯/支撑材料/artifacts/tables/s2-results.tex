@@ -1,0 +1,76 @@
+% ============================================================
+% S2 结果表（Artifact 登记）— 阶段 2.2 | 2026-08-08（含任务 A ε 紧档位扫描）
+% 用于 iter-sub2 报告引用；数值与 outputs/data/s2-results.pkl 一致
+% 口径：C₀/E₀ = S1 零迁移时移基线（Q1 裁定 B）；紧档位扫描（§7 任务 A）：
+%       E_min=232.94kt（碳最小化单目标），250-350kt 档均收敛自由解 251.78kt，
+%       ε=240kt 收敛于 242.46kt（让渡 2667 任务，超限 1.0% 兜底），
+%       230/220kt 低于 E_min 不可达
+% ============================================================
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lccccc}
+\toprule
+方案 & 总成本 (M 元) & 碳排放 (kt) & 相对基线成本 & 相对基线碳排 & 平均迁移时延 (ms) \\
+\midrule
+S1 时移基线（零迁移） & 333.3 & 374.28 & --- & --- & --- \\
+S2 碳感知调度 & \textbf{340.1} & \textbf{251.78} & $+2.0\%$ & $-32.7\%$ & 35.3 \\
+\bottomrule
+\end{tabular}
+\caption{S2 迁移收益对比（迁移任务 38{,}198/50{,}000$=$76.4\%）：碳感知调度以 $+2.0\%$ 成本代价换取 $-32.7\%$ 碳排放降幅；容量感知分配已自然实现减碳，自由解碳排 251.78kt 低于 $\eta$=0.8 档上限 299.42kt。}
+\label{tab:s2-benefit}
+\end{table}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+碳排上限 $\varepsilon$ (kt) & 实际碳排 (kt) & 总成本 (M 元) & 相对自由解成本 & 说明 \\
+\midrule
+350 / 320 / 290 / 270 / 251 & 251.78 & 340.1 & $+0.0\%$ & 均收敛自由解（约束未激活） \\
+240 & \textbf{242.46} & \textbf{347.0} & $+2.0\%$ & 让渡 2{,}667 任务，超限 1.0\% 兜底 \\
+230 / 220 & --- & --- & --- & 低于 $E_{\min}$=232.94kt，不可达 \\
+$E_{\min}$（碳最小化） & \textbf{232.94} & \textbf{366.9} & $+7.9\%$ & 碳排理论下界（允许基解兜底超容） \\
+\bottomrule
+\end{tabular}
+\caption{ε 紧档位成本-碳代价曲线（§7 任务 A 补充扫描）：成本随碳上限收紧单调上升——从自由解 340.1M 元/251.78kt，经 $\varepsilon$=240kt 的 347.0M/242.46kt，至碳最小化下界 366.9M/232.94kt；容量感知分配已把任务迁往西部低碳区（E/F），故 $\varepsilon\geq$251kt 档均不绑定。}
+\label{tab:s2-epsilon}
+\end{table}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+A/B 最低利用率 & 总成本 (M 元) & 成本增量 & 碳排放 (kt) & 退路任务数 \\
+\midrule
+0\%（现状，空置） & \textbf{340.1} & --- & 251.78 & 117 \\
+5\% & 340.5 & $+0.1\%$ & 252.39 & 117 \\
+10\% & 343.1 & $+0.9\%$ & 254.30 & 96 \\
+15\% & 348.1 & $+2.4\%$ & 257.43 & 69 \\
+\bottomrule
+\end{tabular}
+\caption{区域最低利用率灵敏度（建模裁定 2026-08-08）：强制 A/B 保底承接 0--15\% 容量（GPU-hour 口径）时总成本温和上升（15\% 保底仅 $+2.4\%$）——证明 A/B 空置是成本最优边界而非模型缺陷，且"启用 A/B"代价可量化；退路任务随保底减少（A/B 承接原超容任务）。碳排微升（A/B 碳强度高于西部），反映成本-碳-利用率三方权衡。}
+\label{tab:s2-minutil}
+\end{table}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lccc}
+\toprule
+区域 & 承接任务数 & 承接 GPU-hour & 负载率 \\
+\midrule
+RegionA & 0 & 0 & 0.0\% \\
+RegionB & 0 & 0 & 0.0\% \\
+RegionC & 15{,}090 & 205{,}700 & 15.9\% \\
+RegionD & 5{,}145 & 540{,}977 & 15.3\% \\
+RegionE & 15{,}649 & 2{,}186{,}755 & \textbf{90.0\%} \\
+RegionF & 14{,}116 & 2{,}087{,}355 & \textbf{90.0\%} \\
+\bottomrule
+\end{tabular}
+\caption{层 1 容量感知目的地分配承接量（90\% 阈值，退路任务 117/50{,}000$=$0.23\%）：E/F 满载至阈值（恰 90\%），A/B 空置，C/D 承接低负载任务。}
+\label{tab:s2-assign}
+\end{table}

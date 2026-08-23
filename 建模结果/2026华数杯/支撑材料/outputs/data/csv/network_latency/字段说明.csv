@@ -1,0 +1,5 @@
+﻿字段名,中文名称,单位,属性,含义与使用说明
+FromRegion,任务来源区域,无,输入索引,与workload_trace.xlsx中的SourceRegion对应。
+ToRegion,任务调度区域,无,输入索引,候选数据中心所在区域。
+NetworkLatency_ms,网络时延,ms,输入参数,从任务来源区域到调度区域的单向等效网络时延。
+LatencyClass,时延等级,无,说明字段,Local/Regional/InterRegional/LongDistance，用于解释区域迁移距离。

@@ -1,0 +1,104 @@
+\section{代码文件清单}
+
+\sloppy
+以下列出我们建模与求解所使用的主要源程序文件，完整源代码见支撑材料 \texttt{outputs/scratch/} 目录。全部代码均为参赛队自行编写，同时按章程第十三条在代码头部标注 AI 辅助完成信息。
+
+\subsection{数据预处理与探索}
+
+\begin{itemize}
+    \item \texttt{data-inventory-02.py}、\texttt{data-cleaning-03.py}、\texttt{data-profiling-04.py}
+    \item \texttt{extract-c-problem-text.py}、\texttt{probe-observations.py}、\texttt{inspect-c-data.py}
+\end{itemize}
+
+\subsection{问题一 基础算力调度与需求预测}
+
+\begin{itemize}
+    \item \texttt{sub1-model.py}（Alpha/Beta MILP 主模型）
+    \item \texttt{preprocess-sub1.py}（数据预处理）
+    \item \texttt{profile-alpha-milp.py}（Alpha 求解耗时与拐角解特征分析）
+    \item \texttt{verify-sub1-b2.py}（基线回测）、\texttt{arch-sub1s3.py}
+    \item \texttt{run-verify-sub1-notebook.py}、\texttt{gen-verify-sub1-notebook.py}
+    \item \texttt{charts-sub1-v2.py}、\texttt{charts-sub1-whitenoise.py}（图表生成）
+\end{itemize}
+
+\subsection{问题二 碳感知任务调度}
+
+\begin{itemize}
+    \item \texttt{sub2-model.py}（双层调度 MILP 主模型）
+    \item \texttt{preprocess-sub2.py}（数据预处理）
+    \item \texttt{verify-sub2.py}、\texttt{verify-sub2-capacity.py}（可行域与容量验证）
+    \item \texttt{scan-sub2-epsilon.py}（碳排放上限扫描）
+    \item \texttt{sensitivity-minutil-sub2.py}（利用率下限敏感性）
+    \item \texttt{gen-sub2-model-notebook.py}、\texttt{run-verify-sub2-model-notebook.py}
+\end{itemize}
+
+\subsection{问题三 储能协同优化}
+
+\begin{itemize}
+    \item \texttt{sub3-model.py}（储能 LP 主模型）
+    \item \texttt{preprocess-sub3.py}（数据预处理）、\texttt{verify-sub3.py}（模型核验）
+    \item \texttt{review-m10-s3nostorage.py}（无储能对照）、\texttt{review-q3-s1costbase.py}（成本基线核验）
+    \item \texttt{charts-sub3.py}（图表生成）
+\end{itemize}
+
+\subsection{问题四 多区域算-储-电协同优化}
+
+\begin{itemize}
+    \item \texttt{preprocess-sub4.py}、\texttt{preprocess-sub4-clean.py}（预处理与 Clean-test 抽样）
+    \item \texttt{sub4-model.py}（半耦合 MILP 主模型）、\texttt{sub4-clean-model.py}（配对实验模型）
+    \item \texttt{lns-sub4.py}（大邻域搜索）、\texttt{dryrun-sub4-ratio.py}（比例档扫描）
+    \item \texttt{baseline-sub4-heuristic.py}（B2 电价贪心基线）
+    \item \texttt{inspect-sub4-sensitivity.py}、\texttt{inspect-sub4-reduction.py}
+    \item \texttt{inspect-sub4-cost.py}、\texttt{inspect-sub4-corner.py}、\texttt{inspect-lns-progress.py}
+    \item \texttt{inspect-s4-charts.py}、\texttt{sens-scan-sub4.py}（灵敏度扫描）
+    \item \texttt{scan-d-corners.py}、\texttt{check-d-marginal.py}、\texttt{check-latency.py}
+    \item \texttt{check-baseload-bottleneck.py}、\texttt{decompose-sub4-cost.py}（成本归因）
+    \item \texttt{verify-sub4-issues.py}（审阅核验）、\texttt{chart-d-marginal.py}
+    \item \texttt{render-sub4-previews.py}、\texttt{charts-sub4.py}、\texttt{charts-sub4-v2.py}
+    \item \texttt{charts-sub4-lns.py}（图表生成）
+\end{itemize}
+\fussy
+
+\section{AI 工具使用详情}
+
+根据《"华数杯"大学生数学建模竞赛人工智能工具使用章程》第十四条及附录模板要求，以下报告论文撰写过程中 AI 工具的使用情况。
+
+\input{../ai-usage-report/ai-detail-content}
+
+\section{补充图表}
+
+以下四图为问题一预测建模阶段的白噪声四重检验结果，作为正文统计分析的补充证据列入附录。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\textwidth]{../../outputs/figures/sub1-whitenoise-bds-v1.pdf}
+    \caption{BDS 非线性检验 $p$ 值，4 序列 $\times$ 嵌入维 $m=2,3,4$，虚线标 0.05 显著性水平（AI 辅助生成）}
+    \label{fig:app-bds}
+\end{figure}
+
+由图 \ref{fig:app-bds} 可知，全部 4 个序列在所有嵌入维下的 $p$ 值均远大于 0.05，无法拒绝独立同分布原假设。残差序列不存在可被非线性结构捕获的确定性成分。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\textwidth]{../../outputs/figures/sub1-whitenoise-granger-v1.pdf}
+    \caption{Granger 因果检验 $p$ 值热力图，左侧 6 组类型间、右侧 4 组区域间（AI 辅助生成）}
+    \label{fig:app-granger}
+\end{figure}
+
+由图 \ref{fig:app-granger} 可知，类型间与区域间 Granger 因果检验的 $p$ 值均大于 0.05，不同 GPU 类型需求序列之间、不同区域流量序列之间均不存在显著的预测因果关系。这支持各序列独立建模的合理性。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\textwidth]{../../outputs/figures/sub1-whitenoise-forecast-v1.pdf}
+    \caption{评估时段预测对比，实际值与基线、Prophet、LSTM、组合模型，标注各模型 RMSE（AI 辅助生成）}
+    \label{fig:app-forecast}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\textwidth]{../../outputs/figures/sub1-whitenoise-rmse-v1.pdf}
+    \caption{四模型 RMSE 对比，水平柱状图，标注 RMSE 值及相对均值基线的提升百分比（AI 辅助生成）}
+    \label{fig:app-rmse}
+\end{figure}
+
+从图 \ref{fig:app-forecast} 与图 \ref{fig:app-rmse} 可以看出，组合模型在所有测试序列上的 RMSE 均显著低于三种单一基线模型，相对于均值预测基线的提升幅度在 30\%--45\% 之间。这验证了白噪声检验驱动的模型选择策略的有效性。

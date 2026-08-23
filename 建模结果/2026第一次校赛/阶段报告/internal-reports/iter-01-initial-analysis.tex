@@ -1,0 +1,131 @@
+\documentclass[UTF8]{ctexart}
+
+% STATUS: draft
+% LAST_MODIFIED: 2026-07-28
+
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+\usepackage{hyperref}
+
+\title{2026 校赛 C 题初始分析报告}
+\author{阶段 0.1 产出}
+\date{2026-07-28}
+
+\begin{document}
+\maketitle
+
+\section{问题重述}
+
+某竞赛采用双阶段评审机制。网评阶段每篇论文由 4 位评委以百分制评分，通过标准分（z-score）归一化后按总分排名，前 55\% 进入集中评审。集中评审阶段每篇论文由 3 位评委独立评分（同样百分制），换算为标准分后，与网评平均标准分取均值作为最终成绩。
+
+本题要求基于 A--E 五个题目的评审数据，完成五项建模任务：(1) 网评与终评相关性分析；(2) 评委基本素质指标体系；(3) 评委素质数学模型；(4) 不同题目评委表现差异分析；(5) 网评成绩利用策略优化。
+
+\section{子问题拆解}
+
+\subsection{子问题 1：网评与终评相关性分析}
+
+\textbf{目标}：量化网评成绩与最终成绩的相关性，评价网评结果的有效性。
+
+\textbf{方法思路}：
+\begin{itemize}
+    \item 对每篇论文计算其网评 4 位评委的标准分均值，作为"网评成绩"
+    \item 以最终奖项（一等奖/二等奖/三等奖/未入围）作为"最终成绩"
+    \item 使用 Spearman 秩相关系数（奖项为等级数据）度量相关性
+    \item 辅助分析：网评前 55\% 筛选的命中率（是否正确筛选出入围论文）
+    \item 辅助分析：ROC 曲线评估网评对一等奖/二等奖的区分能力
+\end{itemize}
+
+\subsection{子问题 2：评委基本素质指标体系}
+
+\textbf{目标}：构建多维度评委素质评价框架。
+
+\textbf{拟构建维度}：
+\begin{enumerate}
+    \item \textbf{评分一致性}（Reliability）：该评委与其他评委对同一批论文的评分趋向是否一致，用成对 ICC 或平均绝对偏差度量
+    \item \textbf{区分度}（Discrimination）：该评委的评分能否有效区分不同质量水平的论文，用评分方差、与最终成绩的相关性度量
+    \item \textbf{准确性}（Accuracy）：该评委的评分与"真实水平"（以最终成绩为代理）的吻合程度
+    \item \textbf{偏差控制}（Bias Control）：该评委是否存在系统性偏高或偏低的倾向，用评分均值偏离全体均值的程度度量
+    \item \textbf{稳定性}（Stability）：同一评委在不同论文上的评分模式是否一致，用评分分布的统计特征度量
+\end{enumerate}
+
+\subsection{子问题 3：评委素质数学模型}
+
+\textbf{目标}：基于 Q2 的指标体系，建立综合评价模型并应用于附件数据。
+
+\textbf{方法思路}：
+\begin{itemize}
+    \item 各维度指标归一化（min-max 或 z-score）
+    \item 权重确定：熵权法（客观）或 AHP（综合主客观）
+    \item 综合评分：加权线性组合或 TOPSIS
+    \item 对每位评委输出综合素质评分和排名
+\end{itemize}
+
+\subsection{子问题 4：不同题目评委表现差异分析}
+
+\textbf{目标}：检验 A/B/C/D/E 五题评委整体素质是否存在显著差异，分析原因。
+
+\textbf{方法思路}：
+\begin{itemize}
+    \item 以 Q3 输出的评委素质评分为因变量，题目类别为自变量
+    \item 正态性检验后选择 ANOVA 或 Kruskal-Wallis 检验
+    \item 若有显著差异，事后检验（Tukey HSD 或 Dunn 检验）定位差异来源
+    \item 差异原因假设：不同题目论文质量分布不同？不同题目评委遴选标准不同？
+\end{itemize}
+
+\subsection{子问题 5：网评成绩利用策略}
+
+\textbf{目标}：分析网评成绩加入总成绩的利弊，提出改进建议。
+
+\textbf{方法思路}：
+\begin{itemize}
+    \item 利弊分析：利——增加样本量、降低单个评委偶然误差的影响；弊——网评阶段若评委素质参差可能引入噪声
+    \item 模拟分析：假设不同的网评权重（当前为 1/4），比较排序稳定性
+    \item 提出改进方案：基于评委素质的动态权重调整、异常评委评分识别与降权等
+\end{itemize}
+
+\section{相关知识}
+
+\subsection{标准分（z-score）}
+
+标准分公式 $z_i = (x_i - \bar{x})/\sigma$ 是统计学中的标准化变换，消除评委打分尺度差异。性质：均值为 0，标准差为 1，保留原始分布形态。
+
+\subsection{评分者信度}
+
+\begin{itemize}
+    \item \textbf{ICC（组内相关系数）}：适用于连续评分的多评委一致性度量，ICC(2,k) 适合本场景（评委和论文均为随机效应）
+    \item \textbf{Kendall's W}：多评委排序一致性，取值范围 [0,1]
+    \item \textbf{Pearson vs ICC}：高 Pearson 相关不等于高分值一致（如评委 A 给 $[1,2,3]$，B 给 $[11,12,13]$，Pearson=1 但 ICC 很低）
+\end{itemize}
+
+\subsection{评委偏差类型}
+
+\begin{itemize}
+    \item 严厉度偏差：某评委系统性偏低
+    \item 宽容度偏差：某评委系统性偏高
+    \item 中心化趋势：回避极端分数
+    \item 光环效应：对某些论文的非理性偏爱
+\end{itemize}
+
+\section{初始建模假设}
+
+\begin{enumerate}
+    \item 最终奖项（一等/二等/三等）真实反映了论文的相对质量水平
+    \item 网评 4 位评委之间独立评分，无串通
+    \item 同一题目内的论文来自同一学科领域，评分标准可比
+    \item 集中评审的评委整体素质较高（集中评审是精选环节）
+    \item 标准分公式能有效消除不同评委的尺度差异
+\end{enumerate}
+
+\section{待解决的开放问题}
+
+\begin{enumerate}
+    \item 数据中只有网评原始分和最终奖项，集中评审阶段的评委评分未知——如何准确评估网评的边际贡献？
+    \item 评委是否跨题目出现？若有跨题评委，是将其表现合并还是分题评估？
+    \item "前 55\% 进入集中评审"与数据中约 42\% 的实际比例不符——是否存在额外的淘汰机制或数据不完整？
+    \item 将奖项等级（一等/二等/三等/未入围）作为论文质量的代理变量是否合理？不同题目的奖项分布不同（如 B 题一等 28 篇，D 题一等 34 篇），可否跨题比较？
+    \item 标准分公式在同一评委评阅论文数较少时不稳定——实际数据中各评委评阅了多少篇论文？
+\end{enumerate}
+
+\end{document}

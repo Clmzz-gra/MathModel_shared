@@ -1,0 +1,76 @@
+\section{模型假设与符号说明}
+
+\subsection{模型假设}
+
+为明确模型适用范围并简化模型现实复杂性，我们做出以下核心假设。
+
+\begin{enumerate}[label=假设\arabic*., leftmargin=*]
+    \sloppy
+    \item \textbf{六区域电力系统独立运行，不考虑跨区域潮流。}
+    赛题说明7要求不建模跨区功率交换，区域间仅通过任务迁移连接。这一假设把六区域问题降级为可独立求解的电力平衡子问题。
+
+    \item \textbf{任务迁移的带宽、传输能耗与迁移费用为零。}
+    赛题说明7规定迁移只受时延SLA与容量/电力约束，不建模带宽与迁移费用，迁移决策因此简化为目的地选择，与数据实际提供的信息相符。
+
+    \item \textbf{电价、碳强度、可用新能源功率为逐时已知的确定性输入。}
+    三者在赛题数据中均为确定值，故模型为确定性规划。
+
+    \item \textbf{NonAI\_IT\_Load\_MW 固定不变，不参与调度优化。}
+    非AI负载以固定时间序列给出，我们视其为常量。优化仅作用于AI\_IT\_Load与储能充放电，其中AI\_IT\_Load由具体任务调度决定。
+
+    \item \textbf{任务不可抢占、不可拆分、不可中途迁移，须在 2406 时点前完成。}
+    赛题规定任务不可抢占、不可拆分、不可中途迁移，须在 2406 时点前完成。这使调度问题转化为离散空间中的任务分配与开工时段决策。
+
+    \item \textbf{可用新能源取P25分位为稳定可用量，弃电部分不计入调度目标。}
+    我们取各区域序列25\%分位作为可靠的消纳基准，避免因波动导致不可行解，增强方案稳健性。
+
+    \item \textbf{各区域储能系统为独立运行，不设共享储能池。}
+    六区域储能容量与SOC初值独立运行，结合说明7，各区域储能独立，不设跨区共享。
+
+    \item \textbf{任务到达序列在主时域第0--2399小时内全部已知。}
+    任务到达序列在主时域内全部已知。子问题一以该序列训练预测，子问题二至四直接使用；在线场景可由预测模型近似实现。
+\end{enumerate}
+
+\subsection{符号说明}
+
+本节统一说明文中跨章节使用到的核心数学符号。子问题特有的符号在各对应章节首次出现时定义。常用符号汇总见表 \ref{tab:symbols}。
+
+\begin{table}[h]
+\centering
+\caption{跨章节通用符号说明}
+\label{tab:symbols}
+\small
+\begin{tabular}{c p{0.50\textwidth} p{0.30\textwidth}}
+\toprule
+符号 & 含义 & 单位/备注 \\
+\midrule
+$i$ & 任务索引，$i=1,2,\dots,I$（$I=50\,000$） & — \\
+$r$ & 区域索引，$r\in\{\text{A,B,C,D,E,F}\}$ & — \\
+$t$ & 小时索引，$t=0,1,\dots,2406$ & h \\
+$T$ & 主时域长度，$T=2400$ & h \\
+$\text{GH}_i$ & 任务$i$的GPU-hour需求 & GPU$\cdot$h \\
+$\text{GPU}_r$ & 区域$r$的GPU总量 & GPU \\
+$\text{Avail}_r$ & 区域$r$的可用GPU数 & GPU$\cdot$h/h \\
+$\text{PUE}_r$ & 区域$r$的能源使用效率 & — \\
+$\text{Cap}_r$ & 区域$r$的储能容量 & MWh \\
+$\text{SOC}_{r,t}$ & 区域$r$在$t$时刻的荷电状态 & MWh \\
+$\text{Price}_{r,t}$ & 区域$r$在$t$时的节点电价 & 元/MWh \\
+$\text{CI}_{r,t}$ & 区域$r$在$t$时的碳强度 & tCO$_2$/MWh \\
+$\text{Ren}_{r,t}$ & 区域$r$在$t$时的可用新能源 & MW \\
+$\text{L}_{ij}$ & 从区域$i$到$j$的网络时延 & ms \\
+$\text{GP}_{r,t}$ & 区域$r$在$t$时的电网购电量 & MW \\
+$\text{GS}_{r,t}$ & 区域$r$在$t$时的电网售电量 & MW \\
+$\text{CP}_{r,t}$ & 区域$r$在$t$时的储能充电功率 & MW \\
+$\text{DP}_{r,t}$ & 区域$r$在$t$时的储能放电功率 & MW \\
+$\eta_c$ & 储能充电效率 & — \\
+$\eta_d$ & 储能放电效率 & — \\
+$\text{NET}_{r}$ & 区域$r$的峰值净购电功率 & MW \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+上述符号中，$i,r,t$为索引变量。$\text{GH}_i$、$\text{PUE}_r$、$\text{Price}_{r,t}$、$\text{CI}_{r,t}$用于成本与碳排放计算。储能状态由$\text{CP}_{r,t}$、$\text{DP}_{r,t}$与$\text{SOC}_{r,t}$递推，递推式如下。
+\[
+\text{SOC}_{r,t} = \text{SOC}_{r,t-1} + \eta_c \cdot \text{CP}_{r,t} - \text{DP}_{r,t}/\eta_d .
+\]
+$\text{GP}_{r,t}$、$\text{GS}_{r,t}$ 用于功率平衡，表示与电网的购售交互。子问题专用符号将在各对应章节中按需引入。

@@ -1,0 +1,83 @@
+% STATUS: draft
+% LAST_MODIFIED: 2026-07-28
+\documentclass[UTF8]{ctexart}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+
+\title{子问题1 数学推导：网评与终评相关性分析}
+\author{阶段 2.0}
+\date{2026-07-28}
+
+\begin{document}
+\maketitle
+
+\section{标准分计算}
+
+设评委 $j$ 评阅 $n_j$ 篇论文，原始分为 $\{x_{j,1}, \ldots, x_{j,n_j}\}$。
+
+\begin{equation}
+\bar{x}_j = \frac{1}{n_j}\sum_{i=1}^{n_j} x_{j,i}, \quad
+\sigma_j = \sqrt{\frac{1}{n_j-1}\sum_{i=1}^{n_j}(x_{j,i} - \bar{x}_j)^2}
+\end{equation}
+
+标准分：
+\begin{equation}
+z_{j,i} = \frac{x_{j,i} - \bar{x}_j}{\sigma_j}
+\end{equation}
+
+每篇论文的网评综合得分为其 4 位评委标准分的均值。
+
+\section{秩相关分析}
+
+最终奖项为等级数据（未入围=0, 三等=1, 二等=2, 一等=3）。
+
+\textbf{Spearman 秩相关系数}（MS-010, PR-003）：
+
+将网评标准分均值 $\{\bar{z}_i\}$ 和奖项 $\{y_i\}$ 分别排秩得 $\{r_i^{(z)}\}, \{r_i^{(y)}\}$：
+
+\begin{equation}
+\rho = 1 - \frac{6\sum_{i=1}^{n}(r_i^{(z)} - r_i^{(y)})^2}{n(n^2-1)}
+\end{equation}
+
+\textbf{大样本效应量报告}（PF-005）：$n = 4876$，$p$ 值必然显著，必须报告 $|\rho|$：
+$<0.1$ 可忽略，$0.1$–$0.3$ 弱，$0.3$–$0.5$ 中等，$>0.5$ 强。
+
+\section{线性相关（辅助）}
+
+经 Spearman 确认单调关系后，对入围论文（$n=2074$）计算 Pearson 相关系数：
+
+\begin{equation}
+r = \frac{\sum_{i=1}^{n}(\bar{z}_i - \bar{\bar{z}})(y_i - \bar{y})}{\sqrt{\sum(\bar{z}_i - \bar{\bar{z}})^2 \sum(y_i - \bar{y})^2}}
+\end{equation}
+
+前置条件：正态性检验（$|\text{偏度}| < 1$ 且 $|\text{峰度}| < 3$）。
+
+\section{筛选有效性}
+
+网评排名前 55\% 的论文进入集中评审的命中率：
+
+\begin{equation}
+\text{命中率} = \frac{|\{\text{前55\%}\} \cap \{\text{获奖}\}|}{|\{\text{前55\%}\}|}, \quad
+\text{假阴性率} = \frac{|\{\text{后45\%}\} \cap \{\text{获奖}\}|}{|\{\text{获奖}\}|}
+\end{equation}
+
+\section{区分能力（ROC）}
+
+以网评标准分为预测变量，以"是否获一等奖"为二分类标签，绘制 ROC 曲线。
+AUC > 0.7 表明网评对一等奖有良好区分能力。
+
+\section{数学自检}
+
+\begin{itemize}
+\item 标准分 $z_{j,i}$ 量纲为 1（标准差倍数），跨评委可比 $\checkmark$
+\item Spearman $\rho \in [-1,1]$，与效应量阈值一致 $\checkmark$
+\item 无循环依赖：$x \to z \to \rho/r \to$ ROC $\checkmark$
+\end{itemize}
+
+\section{直觉解释}
+
+网评就像一道"初筛"——我们用四个评委的评分来预测一篇论文最终能不能拿奖。Spearman $\rho$ 告诉我们"排序对不对"：$\rho=0.6$ 意味着 60\% 的论文对排序一致。ROC AUC 告诉我们"能不能筛出好论文"：AUC 越高，网评越可靠。
+
+\end{document}

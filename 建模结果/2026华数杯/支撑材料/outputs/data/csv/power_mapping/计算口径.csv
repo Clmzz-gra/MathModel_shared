@@ -1,0 +1,6 @@
+﻿项目,定稿公式/规则
+AI IT负荷,"AI_IT_Load(r,t)=Σ_i[GPU_Demand(i)×Overlap(i,r,t)×GPU_Power(TaskType_i)]。Overlap为任务在时段t的实际占用小时数。"
+总IT负荷,"IT_Load(r,t)=NonAI_IT_Load(r,t)+AI_IT_Load(r,t)。"
+设施负荷,"Total_Load(r,t)=IT_Load(r,t)×PUE(r)。"
+容量,"Σ_i[GPU_Demand(i)×Overlap(i,r,t)]≤Available_GPU(r)×1h。"
+时域,主时域为0–2399；2400–2406仅用于结清2399小时前到达任务，期间无新任务到达。

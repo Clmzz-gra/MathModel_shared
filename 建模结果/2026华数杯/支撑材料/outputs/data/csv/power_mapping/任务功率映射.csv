@@ -1,0 +1,4 @@
+﻿TaskType,GPU_Power_MW_per_EquivalentGPU,Remarks
+AITraining,0.16,训练任务的等效 GPU 平均 IT 功率；仅在任务实际占用时计入。
+BatchInference,0.1,批量推理任务的等效 GPU 平均 IT 功率；仅在任务实际占用时计入。
+RealTimeInference,0.08,实时推理任务的等效 GPU 平均 IT 功率；仅在任务实际占用时计入。
